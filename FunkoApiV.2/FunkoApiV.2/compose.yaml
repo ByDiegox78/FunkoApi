@@ -1,0 +1,61 @@
+﻿services:
+  # Base de datos PostgreSQL
+  db:
+    image: postgres:16-alpine
+    container_name: funkoapi_postgres
+    restart: always
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: funkos
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d funkos"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - funko_net
+
+  # Cache Redis
+  redis:
+    image: redis:latest
+    container_name: funkoapi_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - funko_net
+
+  # API .NET (FunkoApi V.2)
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: funkoapi_backend
+    ports:
+      - "8080:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__Postgres=Host=db;Port=5432;Database=funkos;Username=postgres;Password=postgres
+      - ConnectionStrings__Redis=redis:6379
+    command: ["Development"]
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - funko_net
+
+networks:
+  funko_net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
