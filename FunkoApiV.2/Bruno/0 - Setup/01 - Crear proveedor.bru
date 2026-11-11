@@ -10,6 +10,14 @@ post {
   auth: none
 }
 
+script:pre-request {
+  const token = bru.getEnvVar("adminToken");
+  if (!token) {
+    throw new Error("Inicia sesión como ADMIN antes de crear el proveedor.");
+  }
+  req.setHeader("Authorization", `Bearer ${token}`);
+}
+
 body:json {
   {
     "nombre": "Proveedor Bruno Test",

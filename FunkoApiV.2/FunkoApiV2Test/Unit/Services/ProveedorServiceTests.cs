@@ -133,6 +133,20 @@ public class ProveedorServiceTests {
     }
 
     [Test]
+    public async Task Update_CuandoRepositorioNoEncuentraProveedor_PropagaNotFound() {
+        const string id = "672f1a8b3c9d4e5f6a7b8c9d";
+        _repo.Setup(r => r.Update(id, It.IsAny<Proveedor>()))
+            .ReturnsAsync(Result.Failure<Proveedor, DomainError>(NotFound.FromId(id, "Proveedor")));
+
+        var resultado = await _service.Update(id, new ProveedorRequestDto {
+            Nombre = "Acme actualizado", Direccion = "Calle 2"
+        });
+
+        resultado.IsFailure.Should().BeTrue();
+        resultado.Error.Should().BeOfType<NotFound>();
+    }
+
+    [Test]
     public async Task SoftDelete_ConFunkosAsociados_DevuelveConflict() {
         var p = ProveedorSeed;
         _funkoRepo.Setup(f => f.GetPagedAsync(It.IsAny<FunkoFilterRequest>()))
@@ -140,6 +154,8 @@ public class ProveedorServiceTests {
         var r = await _service.SoftDelete(p.Id.ToString());
         r.IsFailure.Should().BeTrue();
         r.Error.Should().BeOfType<Conflict>();
+        _funkoRepo.Verify(f => f.GetPagedAsync(It.Is<FunkoFilterRequest>(filter =>
+            filter.ProveedorId == p.Id.ToString() && filter.Page == 0 && filter.Size == 1)), Times.Once);
         _repo.Verify(r => r.SoftDelete(It.IsAny<string>()), Times.Never);
     }
 

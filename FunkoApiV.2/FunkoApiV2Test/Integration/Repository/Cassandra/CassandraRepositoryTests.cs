@@ -91,7 +91,7 @@ public class CassandraRepositoryTests {
         porProveedor.Should().ContainSingle()
             .Which.Should().BeEquivalentTo(new FunkosPorProveedor {
                 ProveedorId = _proveedorId,
-                FunkosId = Random.Shared.Next(1, 100000),
+                FunkosId = _funkoId,
                 Nombre = nombre,
                 Stock = 8,
                 Precio = 19.99m,
@@ -123,6 +123,23 @@ public class CassandraRepositoryTests {
         funkos.Should().ContainSingle();
         funkos[0].FunkosId.Should().Be(_funkoId);
         funkos[0].CategoriaId.Should().Be(_categoriaId);
+    }
+
+    [Test]
+    public async Task GetFunkosPorProveedor_SoloDevuelveElementosDelProveedorSolicitado() {
+        // Arrange
+        await _repository.SincronizarFunkoAsync(
+            _funkoId, "Funko de prueba", 8, 19.99m, _categoriaId, "Categoria", _proveedorId, "Proveedor");
+        await _repository.SincronizarFunkoAsync(
+            _funkoId + 1, "Otro funko", 2, 9.99m, "OtraCategoria", "Otra", "OtroProveedor", "Otro");
+
+        // Act
+        var funkos = await _repository.GetFunkosPorProveedor(_proveedorId);
+
+        // Assert
+        funkos.Should().ContainSingle();
+        funkos[0].FunkosId.Should().Be(_funkoId);
+        funkos[0].ProveedorId.Should().Be(_proveedorId);
     }
 
     [Test]

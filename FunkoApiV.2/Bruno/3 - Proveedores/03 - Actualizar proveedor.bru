@@ -13,10 +13,16 @@ auth:bearer {
   token: {{adminToken}}
 }
 
+script:pre-request {
+  const token = bru.getEnvVar("adminToken");
+  if (!token) throw new Error("Inicia sesión como ADMIN antes de actualizar proveedores.");
+  req.setHeader("Authorization", `Bearer ${token}`);
+}
+
 body:json {
   {
-    "nombre": "Proveedor Bruno Actualizado",
-    "direccion": "Calle Bruno Actualizada 2"
+    "nombre": "Prov Bruno Updated",
+    "direccion": "Calle Bruno 2"
   }
 }
 
@@ -25,9 +31,9 @@ tests {
     expect(res.status).to.equal(200);
   });
   test("nombre actualizado", function() {
-    expect(res.body.nombre).to.equal("Proveedor Bruno Actualizado");
+    expect(res.body.nombre).to.equal("Prov Bruno Updated");
   });
   test("direccion actualizada", function() {
-    expect(res.body.direccion).to.equal("Calle Bruno Actualizada 2");
+    expect(res.body.direccion).to.equal("Calle Bruno 2");
   });
 }

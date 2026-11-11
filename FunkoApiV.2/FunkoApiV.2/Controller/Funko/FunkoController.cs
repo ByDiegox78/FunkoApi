@@ -13,13 +13,21 @@ namespace FunkoApiV._2.Controller;
 public class FunkoController(IFunkoService ser) : ControllerBase {
 
     /// <summary>Lista Funkos paginados y permite filtrar y ordenar los resultados.</summary>
-    /// <param name="filter">Filtros: nombre, categoría, proveedor, precio mínimo/máximo, stock mínimo y si incluye eliminados; página base cero, tamaño 1–100 y orden. IncludeDeleted se admite actualmente sin exigir ADMIN.</param>
+    /// <param name="filter">Filtros: nombre, categoría, proveedor, precio mínimo/máximo, stock mínimo y si incluye eliminados; página base cero, tamaño 1–100 y orden. Incluir eliminados requiere ADMIN.</param>
     /// <response code="200">Página de resultados y total coincidente.</response>
     /// <response code="400">Algún parámetro de filtro o paginación no es válido.</response>
     [ProducesResponseType(typeof(PagedResult<FunkoResponseDto>), StatusCodes.Status200OK)]
     [HttpGet]
-    public async Task<ActionResult<PagedResult<FunkoResponseDto>>> GetAll([FromQuery] FunkoFilterRequest filter) =>
-        Ok(await ser.GetAll(filter));
+    [ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<PagedResult<FunkoResponseDto>>> GetAll([FromQuery] FunkoFilterRequest filter) {
+        if (filter.IncludeDeleted && !User.IsInRole("ADMIN")) {
+            return User.Identity?.IsAuthenticated == true
+                ? Forbid()
+                : Unauthorized();
+        }
+        return Ok(await ser.GetAll(filter));
+    }
 
     /// <summary>Obtiene un Funko por su identificador.</summary>
     /// <param name="id">Identificador numérico de 64 bits.</param>
@@ -95,7 +103,7 @@ public class FunkoController(IFunkoService ser) : ControllerBase {
     }
 
     /// <summary>Guarda una imagen para un Funko y devuelve su ruta relativa.</summary>
-    /// <remarks>Este endpoint no requiere autenticación actualmente.</remarks>
+    /// <remarks>Requiere rol ADMIN.</remarks>
     /// <param name="file">Archivo multipart; extensiones y tamaño máximo dependen de la configuración de almacenamiento.</param>
     /// <response code="200">Imagen guardada; devuelve la ruta relativa.</response>
     /// <response code="422">Archivo vacío, extensión o tipo no permitido, o tamaño superior al límite.</response>
@@ -103,9 +111,10 @@ public class FunkoController(IFunkoService ser) : ControllerBase {
     [ProducesResponseType(typeof(ImagenResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status422UnprocessableEntity)]
     [ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status500InternalServerError)]
+    [Authorize(Roles = "ADMIN")]
     [HttpPost("imagen")]
     [Consumes("multipart/form-data")]
-    public async Task<ActionResult<ImagenResponseDto>> UploadImagen([FromForm] IFormFile file) {
+    public async Task<ActionResult<ImagenResponseDto>> UploadImagen(IFormFile file) {
         var result = await ser.UploadImagen(file);
         return result.IsSuccess
             ? Ok(new ImagenResponseDto(result.Value))
@@ -113,7 +122,7 @@ public class FunkoController(IFunkoService ser) : ControllerBase {
     }
 
     /// <summary>Reemplaza la imagen de un Funko existente.</summary>
-    /// <remarks>Este endpoint no requiere autenticación actualmente.</remarks>
+    /// <remarks>Requiere rol ADMIN.</remarks>
     /// <param name="id">Identificador numérico de 64 bits.</param>
     /// <param name="file">Archivo multipart de imagen.</param>
     /// <response code="200">Funko actualizado con la nueva imagen.</response>
@@ -124,9 +133,10 @@ public class FunkoController(IFunkoService ser) : ControllerBase {
     [ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status422UnprocessableEntity)]
     [ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status500InternalServerError)]
+    [Authorize(Roles = "ADMIN")]
     [HttpPatch("{id:long}/imagen")]
     [Consumes("multipart/form-data")]
-    public async Task<ActionResult<FunkoResponseDto>> UpdateImagen(long id, [FromForm] IFormFile file) {
+    public async Task<ActionResult<FunkoResponseDto>> UpdateImagen(long id, IFormFile file) {
         var result = await ser.UpdateImagen(id, file);
         return result.IsSuccess
             ? Ok(result.Value)

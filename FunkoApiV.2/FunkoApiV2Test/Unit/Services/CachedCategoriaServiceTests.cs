@@ -4,7 +4,6 @@ using FunkoApiMongo.Cache;
 using FunkoApiV._2.Dto;
 using FunkoApiV._2.Dto.Common;
 using FunkoApiV._2.Error;
-using FunkoApiV._2.Repository;
 using FunkoApiV._2.Service;
 using Moq;
 using NUnit.Framework;
@@ -16,15 +15,13 @@ namespace FunkoApiV2Test.Unit.Services;
 public class CachedCategoriaServiceTests {
     private Mock<ICategoriaService> _inner = null!;
     private Mock<ICacheService> _cache = null!;
-    private Mock<IFunkoRepository> _funkoRepository = null!;
     private CachedCategoriaService _sut = null!;
 
     [SetUp]
     public void SetUp() {
         _inner = new Mock<ICategoriaService>();
         _cache = new Mock<ICacheService>();
-        _funkoRepository = new Mock<IFunkoRepository>();
-        _sut = new CachedCategoriaService(_inner.Object, _cache.Object, _funkoRepository.Object);
+        _sut = new CachedCategoriaService(_inner.Object, _cache.Object);
     }
 
     [Test]
@@ -39,10 +36,10 @@ public class CachedCategoriaServiceTests {
 
     [Test]
     public async Task GetById_CacheHit_NoConsultaAlServicioInterno() {
-        var dto = new CategoriaDto("Anime000001", "Anime", null, DateTime.UtcNow, null);
-        _cache.Setup(x => x.GetAsync<CategoriaDto>("categoria:Anime000001", default)).ReturnsAsync(dto);
+        var dto = new CategoriaDto("VQGCKyvzIM4", "Anime", null, DateTime.UtcNow, null);
+        _cache.Setup(x => x.GetAsync<CategoriaDto>("categoria:VQGCKyvzIM4", default)).ReturnsAsync(dto);
 
-        var result = await _sut.GetById("Anime000001");
+        var result = await _sut.GetById("VQGCKyvzIM4");
 
         result.IsSuccess.Should().BeTrue();
         result.Value.Should().Be(dto);
@@ -51,15 +48,15 @@ public class CachedCategoriaServiceTests {
 
     [Test]
     public async Task GetById_CacheMiss_GuardaResultadoExitoso() {
-        var dto = new CategoriaDto("Anime000001", "Anime", null, DateTime.UtcNow, null);
-        _cache.Setup(x => x.GetAsync<CategoriaDto>("categoria:Anime000001", default)).ReturnsAsync((CategoriaDto?)null);
-        _inner.Setup(x => x.GetById("Anime000001"))
+        var dto = new CategoriaDto("VQGCKyvzIM4", "Anime", null, DateTime.UtcNow, null);
+        _cache.Setup(x => x.GetAsync<CategoriaDto>("categoria:VQGCKyvzIM4", default)).ReturnsAsync((CategoriaDto?)null);
+        _inner.Setup(x => x.GetById("VQGCKyvzIM4"))
             .ReturnsAsync(Result.Success<CategoriaDto, DomainError>(dto));
 
-        var result = await _sut.GetById("Anime000001");
+        var result = await _sut.GetById("VQGCKyvzIM4");
 
         result.IsSuccess.Should().BeTrue();
-        _cache.Verify(x => x.SetAsync("categoria:Anime000001", dto, null, default), Times.Once);
+        _cache.Verify(x => x.SetAsync("categoria:VQGCKyvzIM4", dto, null, default), Times.Once);
     }
 
     [Test]
@@ -78,7 +75,7 @@ public class CachedCategoriaServiceTests {
     public async Task Add_DelegaAlServicioInterno() {
         var request = new CategoriaRequestDto { Nombre = "Anime" };
         var result = Result.Success<CategoriaDto, DomainError>(
-            new CategoriaDto("Anime000001", "Anime", null, DateTime.UtcNow, null));
+            new CategoriaDto("VQGCKyvzIM4", "Anime", null, DateTime.UtcNow, null));
         _inner.Setup(x => x.Add(request)).ReturnsAsync(result);
 
         (await _sut.Add(request)).Should().Be(result);
@@ -88,11 +85,11 @@ public class CachedCategoriaServiceTests {
     public async Task Update_Exitoso_InvalidaCacheDeId() {
         var request = new CategoriaRequestDto { Nombre = "Anime" };
         var result = Result.Success<CategoriaDto, DomainError>(
-            new CategoriaDto("Anime000001", "Anime", null, DateTime.UtcNow, null));
-        _inner.Setup(x => x.Update("Anime000001", request)).ReturnsAsync(result);
+            new CategoriaDto("VQGCKyvzIM4", "Anime", null, DateTime.UtcNow, null));
+        _inner.Setup(x => x.Update("VQGCKyvzIM4", request)).ReturnsAsync(result);
 
-        (await _sut.Update("Anime000001", request)).Should().Be(result);
-        _cache.Verify(x => x.RemoveAsync("categoria:Anime000001", default), Times.Once);
+        (await _sut.Update("VQGCKyvzIM4", request)).Should().Be(result);
+        _cache.Verify(x => x.RemoveAsync("categoria:VQGCKyvzIM4", default), Times.Once);
     }
 
     [Test]
@@ -107,11 +104,11 @@ public class CachedCategoriaServiceTests {
 
     [Test]
     public async Task Delete_Exitoso_InvalidaCacheDeId() {
-        _inner.Setup(x => x.Delete("Anime000001"))
+        _inner.Setup(x => x.Delete("VQGCKyvzIM4"))
             .ReturnsAsync(Result.Success<bool, DomainError>(true));
 
-        (await _sut.Delete("Anime000001")).IsSuccess.Should().BeTrue();
-        _cache.Verify(x => x.RemoveAsync("categoria:Anime000001", default), Times.Once);
+        (await _sut.Delete("VQGCKyvzIM4")).IsSuccess.Should().BeTrue();
+        _cache.Verify(x => x.RemoveAsync("categoria:VQGCKyvzIM4", default), Times.Once);
     }
 
     [Test]

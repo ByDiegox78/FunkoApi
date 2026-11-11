@@ -13,6 +13,12 @@ auth:bearer {
   token: {{adminToken}}
 }
 
+script:pre-request {
+  const token = bru.getEnvVar("adminToken");
+  if (!token) throw new Error("Inicia sesión como ADMIN antes de crear proveedores.");
+  req.setHeader("Authorization", `Bearer ${token}`);
+}
+
 body:json {
   {
     "nombre": "",

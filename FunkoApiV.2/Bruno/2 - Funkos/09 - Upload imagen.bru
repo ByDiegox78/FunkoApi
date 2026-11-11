@@ -10,6 +10,16 @@ post {
   auth: none
 }
 
+auth:bearer {
+  token: {{adminToken}}
+}
+
+script:pre-request {
+  const token = bru.getEnvVar("adminToken");
+  if (!token) throw new Error("Inicia sesion como ADMIN antes de subir imagenes.");
+  req.setHeader("Authorization", `Bearer ${token}`);
+}
+
 tests {
   test("status 400 por archivo ausente", function() {
     expect(res.status).to.equal(400);

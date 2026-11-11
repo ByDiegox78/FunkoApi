@@ -1,356 +1,152 @@
-# 🚀 FunkoApi
+# FunkoApi
 
-API REST para gestión de Funkos, Categorías y Proveedores construida con .NET 10, C# 14 y arquitectura Onion-like híbrida.
+API para gestionar Funkos, categorías, proveedores y usuarios, desarrollada con
+ASP.NET Core/.NET 10. Combina REST, GraphQL y SignalR con PostgreSQL, MongoDB,
+Cassandra y Redis. Esta página resume el proyecto; el recorrido completo está en
+la [guía práctica](doc/00-guia-practica.md) y el
+[guion de presentación](doc/22-presentacion.md).
 
-> 📚 **Material de referencia**: Este proyecto sigue la guía de estilo de José Luis González Sánchez (`joseluisgs`) y los repositorios `TiendaDawApi-NetCore` y `DesarrolloWebEntornosServidor-02-2026-2027`.
+## Arranque rápido
 
----
-
-## 📑 Tabla de Contenidos
-
-- [📝 Descripción](#-descripción)
-- [✨ Características](#-características)
-- [🛠️ Tecnologías](#-tecnologías)
-- [🗄️ Arquitectura de Datos](#-arquitectura-de-datos)
-- [🚀 Inicio Rápido](#-inicio-rápido)
-- [🧪 Estrategia de Testing](#-estrategia-de-testing)
-- [📡 Endpoints](#-endpoints)
-- [🔐 Seguridad](#-seguridad)
-- [📦 Bruno Testing](#-bruno-testing)
-- [🏗️ Estructura del Proyecto](#-estructura-del-proyecto)
-- [📄 Documentación](#-documentación)
-- [📄 Licencia](#-licencia)
-- [✍️ Autores](#-autores)
-
----
-
-## 📝 Descripción
-
-API para gestionar una colección de Funkos (figuras de vinilo) con las siguientes bases de datos:
-
-| Entidad | Base de datos | ID |
-|---------|--------------|-----|
-| **Funko** | PostgreSQL (EF Core) | Auto-incremental (int) |
-| **Categoría** | PostgreSQL (EF Core) | Formato YouTube (11 caracteres) |
-| **Proveedor** | MongoDB | ObjectId (24 caracteres hex) |
-
-**Relaciones:**
-- `Proveedor 1 — * Funko * — 1 Categoría`
-- Un funko pertenece a una categoría y a un proveedor.
-- **Borrado lógico**: al eliminar una categoría con funkos asociados, se devuelve `409 Conflict` y no se borran los funkos.
-
----
-
-## ✨ Características
-
-- ✅ CRUD completo de Funkos, Categorías y Proveedores
-- ✅ Búsqueda paginada con filtros (nombre, categoría, proveedor, precio, stock)
-- ✅ Borrado lógico (`IsDeleted`) con filtro global en EF Core
-- ✅ Caché Redis con patrón Cache-Aside (solo por ID)
-- ✅ Imágenes relativas (solo se guarda la ruta en BD)
-- ✅ Patrón Result (`Result<T, DomainError>`) con CSharpFunctionalExtensions
-- ✅ Validación con FluentValidation (mensajes en español)
-- ✅ Mapeo manual entidad → DTO
-- ✅ JWT + Autorización por roles (Admin para escritura)
-- ✅ Middleware global de manejo de excepciones
-- ✅ Tests unitarios (NUnit + Moq + FluentAssertions)
-- ✅ Tests de integración (TestContainers + PostgreSQL)
-- ✅ Colección Bruno automatizada con assertions
-- ✅ Docker (PostgreSQL, MongoDB, Redis, API)
-- ✅ Swagger/OpenAPI
-
----
-
-## 🛠️ Tecnologías
-
-| Tecnología | Versión | Uso |
-|------------|---------|-----|
-| .NET SDK | 10.0.401 | Runtime y compilación |
-| C# | 14 | Lenguaje |
-| ASP.NET Core | 10.0 | API Web |
-| Entity Framework Core | 10.0.14 | ORM para PostgreSQL |
-| Npgsql | 10.0.3 | Proveedor PostgreSQL |
-| MongoDB.EntityFrameworkCore | 10.0.4 | MongoDB |
-| MongoDB.Driver | 3.13.0 | MongoDB |
-| StackExchange.Redis | 3.3.1 | Caché Redis |
-| CSharpFunctionalExtensions | 3.7.0 | Patrón Result |
-| FluentValidation | 11.3.1 | Validación de DTOs |
-| AutoMapper | 16.2.0 | Mapeo (complemento) |
-| BCrypt.Net-Next | 4.2.0 | Hash de contraseñas |
-| Swashbuckle.AspNetCore | 10.2.3 | Swagger/OpenAPI |
-| Serilog | 10.0.0 | Logging |
-| NUnit | 4.6.1 | Tests unitarios |
-| Moq | 4.21.0 | Mocks |
-| FluentAssertions | 7.2.2 | Aserciones |
-| Testcontainers | 4.15.0 | Tests de integración |
-
----
-
-## 🗄️ Arquitectura de Datos
-
-```
-┌─────────────────┐      ┌─────────────────┐      ┌─────────────────┐
-│   PostgreSQL    │      │    MongoDB      │      │     Redis       │
-│  (Funko, Cat.)  │      │   (Proveedor)   │      │   (Caché)       │
-└────────┬────────┘      └────────┬────────┘      └────────┬────────┘
-         │                        │                        │
-         └────────────────────────┴────────────────────────┘
-                                  │
-                          ┌───────▼───────┐
-                          │   FunkoApi    │
-                          │   (.NET 10)   │
-                          └───────┬───────┘
-                                  │
-                    ┌─────────────┴─────────────┐
-                    │  HTTP / Swagger / Bruno   │
-                    └───────────────────────────┘
-```
-
-**Tablas PostgreSQL:**
-- `funko` (id, name, precio, stock, imagen, categoria_id, proveedor_id, created_at, updated_at, is_deleted)
-- `categoria` (id youtube 11 chars, nombre, descripcion, created_at, updated_at, is_deleted)
-
-**Colección MongoDB:**
-- `proveedor` (_id ObjectId, nombre, direccion, created_at, updated_at, is_deleted)
-
-**Claves de caché Redis:**
-- `funko:{id}` — TTL configurable
-
----
-
-## 🚀 Inicio Rápido
-
-### Desarrollo Local
+Los comandos se ejecutan **desde la raíz del repositorio**, donde está
+`Start.ps1` (un nivel por encima de esta carpeta).
 
 ```powershell
-# 1. Levantar servicios de base de datos (Docker)
-docker-compose -f compose.yaml up -d
-
-# 2. Ejecutar la API
-dotnet run --project FunkoApiV.2\FunkoApiV.2.csproj
-
-# 3. Abrir Swagger
-# https://localhost:7259/openapi/v1.json o http://localhost:5197/openapi/v1.json
+.\Start.ps1              # Desarrollo: bases + API en http://localhost:5798
+.\Start.ps1 -Bruno       # Desarrollo + colección Bruno
+.\Start.ps1 -Production  # Producción: bases + backend en http://localhost:5197
 ```
 
-### Desarrollo en Producción con Docker
+| Comando | Uso |
+|---|---|
+| `.\Start.ps1` | Desarrollo en 5798 |
+| `.\Start.ps1 -Port 5800` | Desarrollo en otro puerto |
+| `.\Start.ps1 -ResetData` | Borra volúmenes y vuelve a sembrar |
+| `.\Start.ps1 -Bruno` | Flujo completo de desarrollo + Bruno |
+| `.\Start.ps1 -Down` | Detiene los contenedores de desarrollo sin borrar datos |
+| `.\Start.ps1 -Production` | Producción en 5197 |
+| `.\Start.ps1 -Production -Build` | Reconstruye la imagen |
+| `.\Start.ps1 -Production -Logs` | Sigue los logs del backend |
+| `.\Start.ps1 -Production -Down` | Detiene los contenedores de producción sin borrar datos |
+| `.\Start.ps1 -Production -InitEnv` | Genera `.env.production` con secretos |
+| `.\Test-All.ps1` | `dotnet test` + Bruno |
+
+Cuando la API esté escuchando:
+
+- Swagger: <http://localhost:5798/swagger> (solo Development)
+- GraphQL: <http://localhost:5798/graphql> (explorador solo Development)
+- Demo SignalR: <http://localhost:5798/> (requiere cuenta ADMIN)
+- Mailpit: <http://localhost:8025>
+
+## Pruebas y cobertura
+
+Desde la raíz del repositorio:
 
 ```powershell
-# Construir y levantar todo el stack
-docker-compose -f docker-compose.prod.yml up -d --build
+.\Start.ps1 -Bruno            # solo Bruno: bases + API + colección
+
+.\Test-All.ps1                # todos los tests .NET + Bruno
+
+dotnet test .\FunkoApiV.2\FunkoApiV2Test\FunkoApiV2Test.csproj `
+  --settings .\FunkoApiV.2\coverage.runsettings `
+  --collect:"XPlat Code Coverage"
+
+reportgenerator `
+  -reports:".\FunkoApiV.2\FunkoApiV2Test\TestResults\**\coverage.cobertura.xml" `
+  -targetdir:".\FunkoApiV.2\coveragereport" `
+  -reporttypes:"Html;TextSummary"
 ```
 
-### Variables de entorno (.env)
+El informe queda en `FunkoApiV.2\coveragereport\index.html`. El paso a paso,
+los filtros por tipo de test y los requisitos están en
+[la guía de pruebas .NET](doc/18-testing.md) y en
+[la guía de Bruno](doc/20-bruno-testing.md).
 
-Copiar `.env.example` a `.env` y ajustar los valores:
+## Qué incluye el proyecto
 
-```env
-ConnectionStrings__DefaultConnection=Host=localhost;Database=funko;Username=admin;Password=admin
-ConnectionStrings__Mongo=mongodb://localhost:27017
-Cache__Redis=localhost:6379
-Jwt__Key=clave-secreta-de-al menos-32-caracteres
-Jwt__Issuer=FunkoApi
-Jwt__Audience=FunkoApi
+- Arquitectura por capas: controladores, servicios, repositorios, DTOs,
+  validación y patrón `Result`.
+- REST para Funkos, categorías, proveedores y autenticación.
+- GraphQL con consultas paginadas y filtradas, mutaciones, cargas y
+  suscripciones. El explorador visual solo se habilita en Development.
+- SignalR en el hub autenticado `/hubs/funkos`.
+- PostgreSQL para Funkos, categorías e Identity; MongoDB para proveedores;
+  Cassandra para consultas agregadas; Redis como caché de aplicación.
+- Correo de bienvenida al registrar usuarios, sin plantillas: asunto y cuerpo se
+  construyen en código. En Development se captura con Mailpit.
+- JWT, roles, borrado lógico, rate limiting (120 peticiones/minuto por IP),
+  CORS por entorno y cabeceras CSP/seguridad en Production.
+- Índices PostgreSQL para filtros, ordenaciones y búsquedas por trigramas.
+- 286 tests .NET y una colección Bruno de 34 peticiones y 80 comprobaciones.
+- Docker Compose con un único comando de arranque por entorno.
+
+**Output Cache HTTP no está implementado.** Redis se usa como caché de
+aplicación (lecturas por id); no es lo mismo que Output Cache.
+
+## Entornos y datos
+
+- **Development:** aplica el esquema y carga datos de ejemplo en PostgreSQL,
+  MongoDB, Cassandra e Identity. Los seeders son idempotentes: reiniciar no
+  duplica ni borra. Crea las cuentas `admin@admin.com` / `Admin123!` y
+  `user@user.com` / `User123!`.
+- **Production:** aplica el esquema y solo aprovisiona el administrador
+  configurado en `BootstrapAdmin__*` si no existe. **No borra datos** y no carga
+  datos de ejemplo. Usa `.env.production` con secretos propios.
+
+Diferencias prácticas:
+
+| Aspecto | Development | Production |
+|---|---|---|
+| Datos de ejemplo | Sí | No |
+| Borrado al arrancar | No | No |
+| Swagger / explorador GraphQL | Sí | 404 |
+| `POST /graphql` | Sí | Sí |
+| CORS | Orígenes locales + configuración | Solo configuración |
+| Correo | Mailpit | SMTP real |
+| Detalle de excepciones | Sí | No |
+
+El primer arranque de Production necesita `.\Start.ps1 -Production -InitEnv`
+para generar `.env.production`. El script valida las credenciales de PostgreSQL
+antes de arrancar el backend y nunca borra volúmenes.
+
+## Estructura
+
+```text
+FunkoApi/
+├── Start.ps1              # Comando único: desarrollo, Bruno o producción
+├── FunkoApiV.2/
+│   ├── FunkoApiV.2/       # API, controladores, servicios, repositorios e infraestructura
+│   ├── FunkoApiV2Test/    # Tests unitarios y de integración
+│   ├── Bruno/             # Colección de pruebas HTTP
+│   ├── doc/               # Guías operativas y apuntes técnicos
+│   ├── Start-Development.ps1
+│   ├── Start-Production.ps1
+│   ├── Run-Bruno.ps1
+│   ├── Test-All.ps1
+│   └── README.md
+└── README.md
 ```
 
----
+## Documentación
 
-## 🧪 Estrategia de Testing
+- [00 — Guía práctica: scripts, entornos, pruebas y problemas](doc/00-guia-practica.md)
+- [22 — Guion de presentación y demo](doc/22-presentacion.md)
+- [17 — Seguridad HTTP, Swagger, GraphQL e índices](doc/17-seguridad-http.md)
+- [18 — Tests .NET y cobertura](doc/18-testing.md)
+- [19 — Docker, desarrollo y producción](doc/19-docker.md)
+- [20 — Bruno](doc/20-bruno-testing.md)
+- [21 — Ejemplos GraphQL](doc/21-GRAPHQL-EJEMPLOS.md)
 
-### Ejecución de Tests
+## Tecnología y versiones
 
-```powershell
-# Todos los tests
-dotnet test .\FunkoApiV2Test\FunkoApiV2Test.csproj
+Los `PackageReference` y el framework objetivo están en
+`FunkoApiV.2/FunkoApiV.2.csproj` y
+`FunkoApiV2Test/FunkoApiV2Test.csproj`. Consulta esos archivos como fuente de
+verdad.
 
-# Solo unitarios (rápidos, sin Docker)
-dotnet test .\FunkoApiV2Test\FunkoApiV2Test.csproj --filter "FullyQualifiedName~Unit"
+## Atribución
 
-# Solo integración (requiere Docker)
-dotnet test .\FunkoApiV2Test\FunkoApiV2Test.csproj --filter "FullyQualifiedName~Integration"
-
-# Con cobertura
-dotnet test .\FunkoApiV2Test\FunkoApiV2Test.csproj --collect:"XPlat Code Coverage"
-```
-
-### Categorías de tests
-
-| Categoría | Descripción |
-|-----------|-------------|
-| `Unit` | Tests unitarios rápidos (mocks, sin BD) |
-| `Integration` | Tests de integración con TestContainers (PostgreSQL real) |
-| `Repository` | Tests de repositorios sobre PostgreSQL |
-| `Service` | Tests de servicios de dominio |
-| `Controller` | Tests de controladores API |
-| `Validator` | Tests de validaciones FluentValidation |
-| `Dto` | Tests de DTOs y mapeo |
-| `Cache` | Tests de caché Redis |
-| `Docker` | Tests que requieren Docker |
-
----
-
-## 📡 Endpoints
-
-### Funkos (`/api/funkos`)
-
-| Método | Ruta | Descripción | Auth |
-|--------|------|-------------|------|
-| GET | `/api/funkos` | Listar funkos paginados con filtros | Público |
-| GET | `/api/funkos/{id}` | Obtener funko por ID | Admin |
-| POST | `/api/funkos` | Crear funko | Admin |
-| PUT | `/api/funkos/{id}` | Actualizar funko | Admin |
-| DELETE | `/api/funkos/{id}` | Eliminar funko (borrado lógico) | Admin |
-| POST | `/api/funkos/imagen` | Subir imagen de funko | Público |
-| PATCH | `/api/funkos/{id}/imagen` | Actualizar imagen de funko | Público |
-
-**Filtros GET:** `nombre`, `categoriaId`, `proveedorId`, `precioMin`, `precioMax`, `stockMin`, `page`, `size`, `sortBy`, `direction`
-
-### Categorías (`/api/categorias`)
-
-| Método | Ruta | Descripción | Auth |
-|--------|------|-------------|------|
-| GET | `/api/categorias` | Listar categorías paginadas | Público |
-| GET | `/api/categorias/{id}` | Obtener categoría por ID | Público |
-| POST | `/api/categorias` | Crear categoría | Admin |
-| PUT | `/api/categorias/{id}` | Actualizar categoría | Admin |
-| DELETE | `/api/categorias/{id}` | Eliminar categoría (borrado lógico) | Admin |
-
-### Proveedores (`/api/Proveedor`) — MongoDB
-
-| Método | Ruta | Descripción | Auth |
-|--------|------|-------------|------|
-| GET | `/api/Proveedor` | Listar proveedores | Público |
-| GET | `/api/Proveedor/{id}` | Obtener proveedor por ID | Público |
-| POST | `/api/Proveedor` | Crear proveedor | Admin |
-| PUT | `/api/Proveedor/{id}` | Actualizar proveedor | Admin |
-| DELETE | `/api/Proveedor/{id}` | Eliminar proveedor | Admin |
-
----
-
-## 🔐 Seguridad
-
-- **Autenticación**: JWT Bearer
-- **Autorización**: Política `RequireAdminRole` (rol `Admin`) para endpoints de escritura (POST, PUT, DELETE)
-- **Endpoints públicos**: GET (listar y obtener por ID)
-- **Hash de contraseñas**: BCrypt
-- **Headers de seguridad**: X-Content-Type-Options, X-Frame-Options, Referrer-Policy, CSP
-- **HTTPS/HSTS**: Solo en producción
-
----
-
-## 📦 Bruno Testing
-
-La colección Bruno está en la carpeta `Bruno/` y contiene **32 peticiones con pruebas automatizadas** que cubren los endpoints con casos positivos, negativos y de error.
-
-### Ejecutar con script de PowerShell
-
-Define `FUNKO_ADMIN_EMAIL` y `FUNKO_ADMIN_PASSWORD` en el entorno local con las credenciales de una cuenta `ADMIN`; no las guardes en `Local.bru`.
-
-```powershell
-.\Run-Bruno.ps1
-```
-
-O ejecutar manualmente:
-
-```powershell
-# App Bruno: abrir la carpeta Bruno y ejecutar "Run Collection" con entorno Local
-# CLI:
-Push-Location .\Bruno
-bru run -r --env-file .\environments\Local.bru
-Pop-Location
-```
-
-### Flujo recomendado en Bruno
-
-1. `0 - Setup/01 - Crear proveedor` (captura `proveedorIdCreado`)
-2. `2 - Funkos/01 - Listar funkos` → `03 - Crear funko` → `04 - Actualizar` → `05 - Eliminar`
-3. `1 - Categorias/01 - Listar` → `02 - Crear` → `03 - Eliminar con funkos (409)` → `04 - Eliminar creada`
-4. `3 - Proveedores/01 - Listar` → `02 - Obtener por id` → `03 - Actualizar`
-5. `90 - Teardown/01 - Eliminar proveedor`
-
----
-
-## 🏗️ Estructura del Proyecto
-
-```
-FunkoApiV.2/
-├── FunkoApiV.2.slnx              # Solución moderna (.NET 10)
-├── FunkoApiV.2/                  # Proyecto API
-│   ├── Controllers/              # Controladores (Funko, Categoria, Proveedor, Auth)
-│   ├── Services/                 # Servicios de negocio (con patrón Result)
-│   ├── Repositories/             # Repositorios (EF Core PostgreSQL + MongoDB)
-│   ├── Models/                   # Entidades de dominio
-│   ├── Dtos/                     # DTOs (Request, Response, Filter)
-│   ├── Mappers/                  # Mapeadores entidad ↔ DTO
-│   ├── Validators/               # Validators FluentValidation
-│   ├── Errors/                   # Errores de dominio (DomainError)
-│   ├── Infrastructures/          # Configuración DI (extension methods)
-│   ├── Middleware/               # GlobalExceptionHandler, SecurityHeaders
-│   ├── Data/                     # DbContext (AppDbContext, AppDbContextMongoDb)
-│   ├── Cache/                    # Servicio de caché Redis
-│   ├── Storage/                  # Servicio de almacenamiento de imágenes
-│   ├── Program.cs                # Punto de entrada y pipeline HTTP
-│   ├── appsettings.json          # Configuración base
-│   └── Dockerfile                # Imagen Docker multi-stage
-├── FunkoApiV2Test/               # Proyecto de tests
-│   ├── Unit/                     # Tests unitarios (Controllers, Services, Mappers, Validators)
-│   └── Integration/              # Tests de integración (TestContainers PostgreSQL)
-├── Bruno/                        # Colección Bruno automatizada
-│   ├── 0 - Setup/
-│   ├── 1 - Categorias/
-│   ├── 2 - Funkos/
-│   ├── 3 - Proveedores/
-│   ├── 90 - Teardown/
-│   └── environments/Local.bru
-├── doc/                          # Documentación numerada (estilo profe)
-├── compose.yaml                  # Docker Compose (Postgres, Mongo, Redis, API)
-├── Dockerfile                    # Dockerfile de la API
-├── .env.example                  # Plantilla de variables de entorno
-└── README.md                     # Este archivo
-```
-
----
-
-## 📄 Documentación
-
-La carpeta `doc/` contiene guías numeradas siguiendo el estilo del profesor:
-
-| Documento | Descripción |
-|-----------|-------------|
-| `doc/01-configuracion-proyectos-dotnet.md` | Configuración de proyectos .NET |
-| `doc/02-arquitectura-pipeline-http.md` | Arquitectura y pipeline HTTP |
-| `doc/03-inyeccion-dependencias.md` | Inyección de dependencias |
-| `doc/04-controladores-rest.md` | Controladores REST |
-| `doc/05-validacion-cascada.md` | Validación en cascada |
-| `doc/06-rest-best-practices.md | Mejores prácticas REST |
-| `doc/07-repository-pattern.md` | Patrón Repositorio |
-| `doc/08-ef-core-postgresql.md` | EF Core con PostgreSQL |
-| `doc/09-mongodb.md` | MongoDB (Proveedores) |
-| `doc/10-redis-caching.md` | Caché Redis |
-| `doc/11-patron-result.md` | Patrón Result / ROP |
-| `doc/12-servicios-negocio.md` | Servicios de dominio |
-| `doc/13-borrado-logico.md` | Borrado lógico y reglas de negocio |
-| `doc/14-mapeadores.md` | Mapeadores entidad ↔ DTO |
-| `doc/15-jwt-authentication.md` | Autenticación JWT |
-| `doc/16-autorizacion-roles.md` | Autorización por roles |
-| `doc/17-seguridad-http.md` | Seguridad HTTP |
-| `doc/18-testing.md` | Estrategia de testing |
-| `doc/19-docker.md` | Docker y Docker Compose |
-| `doc/20-bruno-testing.md` | Testing con Bruno |
-
----
-
-## 📄 Licencia
-
-Este proyecto está basado en el material de **José Luis González Sánchez** (`joseluisgs`), bajo licencia **Creative Commons BY-NC-SA 4.0**. Si reutilizas fragmentos o ideas, debes citar al autor.
-
----
-
-## ✍️ Autores
-
-- **Tu nombre** — Funko/Categoría (PostgreSQL)
-- **Compañero** — Proveedor (MongoDB)
-
----
-
-> 💡 **Tip**: Para ejecutar todo el stack con un solo comando, usa `docker-compose -f compose.yaml up -d`. Para ejecutar los tests Bruno, usa `.\Run-Bruno.ps1`.
+El proyecto utiliza como referencia material de José Luis González Sánchez
+(`joseluisgs`) y sus repositorios docentes, citados en los apuntes
+correspondientes. Respeta las licencias y atribuciones del material original si
+reutilizas contenido.

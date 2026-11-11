@@ -1,79 +1,38 @@
-# 📄 doc/15 — Autenticación JWT
+# 15 — Autenticación JWT
 
----
+## Inicio de sesión
 
-## 1. Configuración
+La autenticación está en `Controller/Auth/AuthController.cs` y
+`Service/Auth/AuthService.cs`. En Development, inicia sesión mediante
+`POST /api/auth/login` con email y contraseña para obtener un JWT. La cuenta de
+ejemplo ADMIN se crea desde `Seeders/IdentitySeeder.cs`; consulta
+[la guía práctica](00-guia-practica.md). No uses las credenciales de ejemplo en
+producción.
 
-```csharp
-services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer = jwtSettings.Issuer,
-            ValidAudience = jwtSettings.Audience,
-            IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(jwtSettings.Key))
-        };
-    });
+Envía el token a los endpoints protegidos con:
+
+```text
+Authorization: Bearer <JWT>
 ```
 
----
+Swagger tiene una opción Bearer para autorizar peticiones autenticadas. En
+GraphQL, introduce el mismo header en el panel **Headers**.
 
-## 2. appsettings.json
+## Configuración
 
-```json
-{
-  "Jwt": {
-    "Key": "clave-secreta-de-al-menos-32-caracteres",
-    "Issuer": "FunkoApi",
-    "Audience": "FunkoApi",
-    "ExpireMinutes": 60
-  }
-}
-```
+`Infrastructure/IdentityConfig.cs` registra Identity, autenticación bearer,
+validación del token y políticas de roles. `Config/JwtSettings.cs` define el
+modelo de configuración. Development dispone de una clave local en
+`appsettings.Development.json`; en Production configura una clave privada
+mediante variable de entorno/secreto, no en JSON compartido.
 
----
+## Registro y usuarios Production
 
-## 3. Uso en controladores
+El endpoint de registro crea un usuario con rol `USER`; no permite que el
+solicitante se asigne `ADMIN`. Production no borra usuarios: conserva los
+existentes, garantiza las definiciones de roles y crea el admin de
+`BootstrapAdmin__*` solo si no existe. Aprovisiona esa cuenta de forma segura
+antes de habilitar operaciones que la requieran.
 
-```csharp
-[Authorize(Policy = "RequireAdminRole")]
-[HttpPost]
-public async Task<ActionResult> Create(...) { ... }
-
-[AllowAnonymous]
-[HttpGet("{id}")]
-public async Task<ActionResult> GetById(int id) { ... }
-```
-
----
-
-## 4. Políticas de autorización
-
-```csharp
-options.AddPolicy("RequireAdminRole", policy =>
-    policy.RequireRole("Admin"));
-```
-
----
-
-## 5. Endpoints protegidos vs públicos
-
-| Endpoint | Método | Auth |
-|----------|--------|------|
-| Listar funkos | GET | Público (AllowAnonymous) |
-| Obtener funko | GET | Admin |
-| Crear funko | POST | Admin |
-| Actualizar funko | PUT | Admin |
-| Eliminar funko | DELETE | Admin |
-| Listar categorías | GET | Público |
-| Obtener categoría | GET | Público |
-| Crear categoría | POST | Admin |
-| Actualizar categoría | PUT | Admin |
-| Eliminar categoría | DELETE | Admin |
-| Proveedores | GET/POST/PUT/DELETE | Admin (escritura) / Público (lectura) |
+Ver también [autorización por roles](16-autorizacion-roles.md) y
+[seguridad HTTP](17-seguridad-http.md).

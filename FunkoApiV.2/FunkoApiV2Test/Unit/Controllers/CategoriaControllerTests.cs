@@ -47,12 +47,12 @@ public class CategoriaControllerTests {
     [Test]
     public async Task GetById_CuandoExiste_Devuelve200() {
         // Arrange
-        var dto = new CategoriaDto("Anime000001", "Anime", null, DateTime.UtcNow, null);
-        _service.Setup(s => s.GetById("Anime000001"))
+        var dto = new CategoriaDto("VQGCKyvzIM4", "Anime", null, DateTime.UtcNow, null);
+        _service.Setup(s => s.GetById("VQGCKyvzIM4"))
             .ReturnsAsync(Result.Success<CategoriaDto, DomainError>(dto));
 
         // Act
-        var r = await _controller.GetById("Anime000001");
+        var r = await _controller.GetById("VQGCKyvzIM4");
 
         // Assert
         r.Result.Should().BeOfType<OkObjectResult>();
@@ -109,12 +109,12 @@ public class CategoriaControllerTests {
     [Test]
     public async Task Update_ConDatosValidos_Devuelve200() {
         // Arrange
-        var dto = new CategoriaDto("Anime000001", "Anime Actualizada", null, DateTime.UtcNow, null);
-        _service.Setup(s => s.Update("Anime000001", It.IsAny<CategoriaRequestDto>()))
+        var dto = new CategoriaDto("VQGCKyvzIM4", "Anime Actualizada", null, DateTime.UtcNow, null);
+        _service.Setup(s => s.Update("VQGCKyvzIM4", It.IsAny<CategoriaRequestDto>()))
             .ReturnsAsync(Result.Success<CategoriaDto, DomainError>(dto));
 
         // Act
-        var r = await _controller.Update("Anime000001", new CategoriaRequestDto { Nombre = "Anime Actualizada" });
+        var r = await _controller.Update("VQGCKyvzIM4", new CategoriaRequestDto { Nombre = "Anime Actualizada" });
 
         // Assert
         r.Result.Should().BeOfType<OkObjectResult>();
@@ -140,11 +140,11 @@ public class CategoriaControllerTests {
     [Test]
     public async Task Delete_CuandoExiste_Devuelve204() {
         // Arrange
-        _service.Setup(s => s.Delete("Anime000001"))
+        _service.Setup(s => s.Delete("VQGCKyvzIM4"))
             .ReturnsAsync(Result.Success<bool, DomainError>(true));
 
         // Act
-        var r = await _controller.Delete("Anime000001");
+        var r = await _controller.Delete("VQGCKyvzIM4");
 
         // Assert
         r.Result.Should().BeOfType<NoContentResult>();

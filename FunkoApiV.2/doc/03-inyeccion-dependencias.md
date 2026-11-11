@@ -1,69 +1,36 @@
-# 📄 doc/03 — Inyección de Dependencias
+# 03 — Inyección de dependencias
 
----
+## Composición actual
 
-## 1. Patrón utilizado
+El registro está repartido entre `Program.cs` y métodos de extensión de
+`Infrastructure/`:
 
-Se usan **extension methods** en `Infrastructures/*Config.cs`, uno por aspecto:
+| Extensión / archivo | Responsabilidad |
+|---|---|
+| `IdentityConfig` | Identity, JWT y políticas `RequireAdmin` / `RequireUser` |
+| `GraphQLConfig` | esquema GraphQL y endpoint visual condicionado por entorno |
+| `SignalRConfig` | SignalR |
+| `CorsConfig` | política CORS |
+| `CassandraConfig` | sesión y servicios Cassandra |
+| `DependencerProvider.AddDependencies` | descubrimiento de servicios/repositorios y decoradores |
 
-| Archivo | Responsabilidad |
-|---------|-----------------|
-| `DatabaseConfig.cs` | DbContext (PostgreSQL + MongoDB) |
-| `ServicesConfig.cs` | Servicios de negocio |
-| `RepositoriesConfig.cs` | Repositorios |
-| `CacheConfig.cs` | Redis + ICacheService |
-| `AuthConfig.cs` | JWT + políticas de autorización |
-| `SwaggerConfig.cs` | Swagger/OpenAPI |
-| `CorsConfig.cs` | CORS |
+`AddDependencies` usa Scrutor para escanear las clases marcadas con
+`ITransientService` e `IScopedService`, y registra los decoradores
+`CachedFunkoService`, `CachedCategoriaService` y `CachedProveedorService`.
+Redis se registra explícitamente desde `Program.cs`.
 
----
+## Ciclos de vida
 
-## 2. Ejemplo: DatabaseConfig
+- `Transient`: tipos marcados con `ITransientService`.
+- `Scoped`: tipos marcados con `IScopedService`.
+- Redis: `ICacheService` se registra como singleton.
 
-```csharp
-public static class DatabaseConfig
-{
-    public static IServiceCollection AddDatabaseConfiguration(
-        this IServiceCollection services,
-        IConfiguration configuration)
-    {
-        var postgresConnection = configuration.GetConnectionString("DefaultConnection")
-            ?? throw new InvalidOperationException("Cadena de conexión no configurada.");
+Al añadir una clase, comprueba qué interfaz marcador implementa y si necesita
+decorador; no añadas registros duplicados sin revisar el escaneo existente.
 
-        services.AddDbContext<AppDbContext>(options =>
-            options.UseNpgsql(postgresConnection));
+## Comprobar la configuración
 
-        services.AddDbContext<AppDbContextMongoDb>(options =>
-            options.UseMongoDB(configuration["Mongo:Connection"], configuration["Mongo:Database"]));
-
-        return services;
-    }
-}
-```
-
----
-
-## 3. Registro de servicios
-
-```csharp
-services.AddScoped<IFunkoService, FunkoService>();
-services.AddScoped<ICategoriaService, CategoriaService>();
-services.AddScoped<IFunkoRepository, FunkoRepository>();
-services.AddScoped<ICategoriaRepository, CategoriaRepository>();
-services.AddSingleton<ICacheService, RedisService>();
-```
-
-- `Scoped`: servicios y repositorios (vida por request HTTP)
-- `Singleton`: caché Redis (vida de la aplicación)
-
----
-
-## 4. Scrutor (opcional)
-
-El proyecto usa Scrutor para registro automático de algunas dependencias:
-
-```csharp
-builder.Services.AddDependencies();
-```
-
-> ⚠️ Se prefiere registro explícito sobre escaneo por reflexión para mayor claridad y rendimiento.
+La fuente de verdad es `FunkoApiV.2/Program.cs` y las extensiones
+`FunkoApiV.2/Infrastructure/*.cs`. Los nombres de ejemplo antiguos como
+`DatabaseConfig` o `ServicesConfig` no corresponden necesariamente a clases
+actuales.

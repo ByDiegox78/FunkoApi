@@ -65,19 +65,19 @@ public class CategoriaServiceIntegrationTests {
         var seedDate = DateTime.UtcNow;
         _db.Categorias.AddRange(
             new Categoria {
-                Id = "Anime000001",
+                Id = "VQGCKyvzIM4",
                 Nombre = "Anime",
                 Descripcion = "Personajes de series de anime y manga",
                 CreatedAt = seedDate
             },
             new Categoria {
-                Id = "Videojuego1",
+                Id = "zw47_q9wbBE",
                 Nombre = "Videojuegos",
                 Descripcion = "Personajes de consolas y PC",
                 CreatedAt = seedDate
             },
             new Categoria {
-                Id = "Peliculas01",
+                Id = "TcMBFSGVi1c",
                 Nombre = "Películas",
                 Descripcion = "Cine y series de televisión",
                 CreatedAt = seedDate
@@ -87,7 +87,7 @@ public class CategoriaServiceIntegrationTests {
             Precio = 15.99m,
             Stock = 10,
             Imagen = "/uploads/funkos/placeholder.png",
-            CategoriaId = "Anime000001",
+            CategoriaId = "VQGCKyvzIM4",
             ProveedorId = ProveedorId,
             CreatedAt = seedDate
         });
@@ -158,11 +158,11 @@ public class CategoriaServiceIntegrationTests {
     [Test]
     public async Task GetById_ConIdExistente_RetornaCategoria() {
         // Act
-        var resultado = await _service.GetById("Anime000001");
+        var resultado = await _service.GetById("VQGCKyvzIM4");
 
         // Assert
         resultado.IsSuccess.Should().BeTrue();
-        resultado.Value.Id.Should().Be("Anime000001");
+        resultado.Value.Id.Should().Be("VQGCKyvzIM4");
         resultado.Value.Nombre.Should().Be("Anime");
     }
 
@@ -225,14 +225,14 @@ public class CategoriaServiceIntegrationTests {
     [Test]
     public async Task Update_ConDatosValidos_ActualizaCategoria() {
         // Act
-        var resultado = await _service.Update("Anime000001", new CategoriaRequestDto {
+        var resultado = await _service.Update("VQGCKyvzIM4", new CategoriaRequestDto {
             Nombre = "Anime y Manga",
             Descripcion = "Series japonesas"
         });
 
         // Assert
         resultado.IsSuccess.Should().BeTrue();
-        resultado.Value.Id.Should().Be("Anime000001");
+        resultado.Value.Id.Should().Be("VQGCKyvzIM4");
         resultado.Value.Nombre.Should().Be("Anime y Manga");
         resultado.Value.Descripcion.Should().Be("Series japonesas");
         resultado.Value.UpdatedAt.Should().NotBeNull();
@@ -277,17 +277,17 @@ public class CategoriaServiceIntegrationTests {
 
     [Test]
     public async Task Delete_CategoriaConFunkosAsociados_DevuelveConflict() {
-        // Arrange — "Anime000001" tiene funkos asociados (siembrados en seed)
+        // Arrange — "VQGCKyvzIM4" tiene funkos asociados (siembrados en seed)
 
         // Act
-        var resultado = await _service.Delete("Anime000001");
+        var resultado = await _service.Delete("VQGCKyvzIM4");
 
         // Assert
         resultado.IsFailure.Should().BeTrue();
         resultado.Error.Should().BeOfType<Conflict>();
         // La categoría no debe haberse borrado
         var listado = await _service.GetAll(new CategoriaFilterRequest());
-        listado.Items.Should().Contain(c => c.Id == "Anime000001");
+        listado.Items.Should().Contain(c => c.Id == "VQGCKyvzIM4");
     }
 
     [Test]

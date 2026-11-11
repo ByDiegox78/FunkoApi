@@ -36,19 +36,19 @@ public abstract class PostgresBaseTest {
         await Context.Database.EnsureCreatedAsync();
         Context.Categorias.AddRange(
             new Categoria {
-                Id = "Anime000001",
+                Id = "VQGCKyvzIM4",
                 Nombre = "Anime",
                 Descripcion = "Personajes de series de anime y manga",
                 CreatedAt = DateTime.UtcNow
             },
             new Categoria {
-                Id = "Videojuego1",
+                Id = "zw47_q9wbBE",
                 Nombre = "Videojuegos",
                 Descripcion = "Personajes de consolas y PC",
                 CreatedAt = DateTime.UtcNow
             },
             new Categoria {
-                Id = "Peliculas01",
+                Id = "TcMBFSGVi1c",
                 Nombre = "Películas",
                 Descripcion = "Cine y series de televisión",
                 CreatedAt = DateTime.UtcNow

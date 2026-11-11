@@ -1,76 +1,26 @@
-# 📄 doc/09 — MongoDB (Proveedores)
+# 09 — MongoDB y proveedores
 
-> ⚠️ **Nota**: Este módulo es responsabilidad del compañero. Se documenta aquí para referencia de la arquitectura completa.
+## Uso actual
 
----
+MongoDB almacena proveedores en la colección `proveedor`. La entidad y el
+contexto se encuentran en `FunkoApiV.2/Models/Proveedor.cs` y los componentes
+de `Repository/Proveedor/`. El contexto se configura con
+`MongoDB.EntityFrameworkCore` y los valores `ConnectionStrings:Mongo` y
+`DatabaseSettings:Name`.
 
-## 1. Entidad Proveedor
+El proveedor se relaciona con un Funko mediante un ObjectId serializado como
+cadena de 24 caracteres hexadecimales. No hay transacción distribuida entre
+MongoDB y PostgreSQL; el servicio valida la existencia antes de crear o
+actualizar un Funko.
 
-```csharp
-public class Proveedor
-{
-    [BsonId]
-    [BsonRepresentation(BsonType.ObjectId)]
-    public string Id { get; set; } = string.Empty;
-    
-    public string Nombre { get; set; } = string.Empty;
-    public string Direccion { get; set; } = string.Empty;
-    public DateTime CreatedAt { get; set; }
-    public DateTime? UpdatedAt { get; set; }
-    public bool IsDeleted { get; set; }
-}
-```
+## Operaciones y precauciones
 
----
+El servicio de proveedores permite altas, lecturas, actualizaciones y baja
+lógica. Al añadir operaciones, invalida las claves de caché relacionadas.
+Production **no** limpia la colección `proveedor` al iniciar: los datos se
+conservan en el volumen de MongoDB. Solo Development inserta proveedores de
+ejemplo.
 
-## 2. DbContext MongoDB
-
-```csharp
-public class AppDbContextMongoDb(DbContextOptions<AppDbContextMongoDb> options) 
-    : DbContext(options)
-{
-    public DbSet<Proveedor> Proveedor => Set<Proveedor>();
-
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
-    {
-        modelBuilder.Entity<Proveedor>().ToCollection("proveedor");
-    }
-}
-```
-
----
-
-## 3. Configuración
-
-```csharp
-builder.Services.AddDbContext<AppDbContextMongoDb>(options =>
-    options.UseMongoDB(connectionString, databaseName));
-```
-
----
-
-## 4. Relación con Funko (cruz BD)
-
-- `Funko.ProveedorId` almacena el ObjectId del proveedor como string (24 chars)
-- El service valida que el proveedor existe consultando el repositorio de MongoDB
-- Es una **relación lógica cruzada** entre PostgreSQL y MongoDB
-
----
-
-## 5. Operaciones CRUD
-
-| Operación | Repositorio | Service |
-|-----------|-------------|---------|
-| Listar | `GetPagedAsync` | `GetAll` |
-| Obtener por ID | `GetById` | `GetById` |
-| Crear | `CreateAsync` | `Add` |
-| Actualizar | `UpdateAsync` | `Update` |
-| Eliminar | `DeleteAsync` | `Delete` |
-
----
-
-## 6. Consideraciones
-
-- No hay transacciones distribuidas entre PostgreSQL y MongoDB
-- Si falla la creación en uno, no se hace rollback en el otro
-- El ID de proveedor se valida con regex `^[a-fA-F0-9]{24}$`
+Para el modelo exacto y los filtros, usa el código actual en
+`Models/Proveedor.cs`, `Repository/Proveedor/ProveedorRepository.cs` y
+`Service/Proveedor/ProveedorService.cs`.

@@ -7,7 +7,7 @@
 
 [CmdletBinding()]
 param(
-    [string]$BaseUrl = "http://localhost:5000",
+    [string]$BaseUrl = "http://localhost:5798",
     [switch]$SkipSetup
 )
 
@@ -51,9 +51,9 @@ function Invoke-ApiRequest {
     } catch {
         if ($_.Exception.Response -ne $null) {
             $statusCode = [int]$_.Exception.Response.StatusCode
-            $content = $_.Exception.Response.GetResponseStream() | 
-                [System.IO.StreamReader]::new() | 
-                [System.IO.StreamReader]::ReadToEnd()
+            $stream = $_.Exception.Response.GetResponseStream()
+            $reader = [System.IO.StreamReader]::new($stream)
+            $content = $reader.ReadToEnd()
             return [PSCustomObject]@{
                 StatusCode = $statusCode
                 StatusDescription = $_.Exception.Response.StatusDescription
@@ -61,7 +61,7 @@ function Invoke-ApiRequest {
                 Headers = $null
             }
         } else {
-            Write-Warning "Error de conexión a $url: $($_.Exception.Message)"
+            Write-Warning "Error de conexión a ${url}: $($_.Exception.Message)"
             return [PSCustomObject]@{
                 StatusCode = 0
                 StatusDescription = "Connection Error"
@@ -140,7 +140,7 @@ function Validate-Test {
 
 # ─── Variables de entorno (simulando Local.bru) ───
 $script:funkoId = "1"
-$script:categoriaId = "Anime000001"
+$script:categoriaId = "VQGCKyvzIM4"
 $script:proveedorId = "672f1a8b3c9d4e5f6a7b8c9d"
 $script:funkoIdCreado = $null
 $script:categoriaIdCreada = $null

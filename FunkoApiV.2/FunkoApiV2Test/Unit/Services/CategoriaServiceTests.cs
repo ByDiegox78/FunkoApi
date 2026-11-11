@@ -51,7 +51,7 @@ public class CategoriaServiceTests {
     [Test]
     public async Task Add_ConDatosValidos_DevuelveDto() {
         var creada = new Categoria {
-            Id = "Anime000001",
+            Id = "VQGCKyvzIM4",
             Nombre = "Anime",
             Descripcion = "Anime y manga",
             CreatedAt = DateTime.UtcNow
@@ -62,7 +62,7 @@ public class CategoriaServiceTests {
         var resultado = await _service.Add(new CategoriaRequestDto { Nombre = "Anime", Descripcion = "Anime y manga" });
 
         resultado.IsSuccess.Should().BeTrue();
-        resultado.Value.Id.Should().Be("Anime000001");
+        resultado.Value.Id.Should().Be("VQGCKyvzIM4");
         resultado.Value.Nombre.Should().Be("Anime");
     }
 
@@ -81,13 +81,13 @@ public class CategoriaServiceTests {
     [Test]
     public async Task Update_ConDatosValidos_DevuelveCategoriaActualizada() {
         var actualizada = new Categoria {
-            Id = "Anime000001", Nombre = "Anime y Manga", Descripcion = "Series japonesas",
+            Id = "VQGCKyvzIM4", Nombre = "Anime y Manga", Descripcion = "Series japonesas",
             CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
         };
-        _repo.Setup(x => x.UpdateAsync("Anime000001", It.IsAny<Categoria>()))
+        _repo.Setup(x => x.UpdateAsync("VQGCKyvzIM4", It.IsAny<Categoria>()))
             .ReturnsAsync(Result.Success<Categoria, DomainError>(actualizada));
 
-        var resultado = await _service.Update("Anime000001", new CategoriaRequestDto {
+        var resultado = await _service.Update("VQGCKyvzIM4", new CategoriaRequestDto {
             Nombre = actualizada.Nombre, Descripcion = actualizada.Descripcion
         });
 
@@ -98,7 +98,7 @@ public class CategoriaServiceTests {
 
     [Test]
     public async Task Update_ConNombreInvalido_NoLlamaAlRepositorio() {
-        var resultado = await _service.Update("Anime000001", new CategoriaRequestDto { Nombre = "ab" });
+        var resultado = await _service.Update("VQGCKyvzIM4", new CategoriaRequestDto { Nombre = "ab" });
 
         resultado.IsFailure.Should().BeTrue();
         resultado.Error.Should().BeOfType<ValidationError>();
@@ -120,10 +120,10 @@ public class CategoriaServiceTests {
     [Test]
     public async Task Delete_ConFunkosAsociados_DevuelveConflictYNoElimina() {
         _funkoRepo.Setup(x => x.GetPagedAsync(It.Is<FunkoFilterRequest>(
-                f => f.CategoriaId == "Anime000001" && f.Page == 0 && f.Size == 1)))
+                f => f.CategoriaId == "VQGCKyvzIM4" && f.Page == 0 && f.Size == 1)))
             .ReturnsAsync((new List<Funko> { new() { Id = 1 } }, 1));
 
-        var resultado = await _service.Delete("Anime000001");
+        var resultado = await _service.Delete("VQGCKyvzIM4");
 
         resultado.IsFailure.Should().BeTrue();
         resultado.Error.Should().BeOfType<Conflict>();
@@ -134,20 +134,20 @@ public class CategoriaServiceTests {
     public async Task Delete_SinFunkosAsociados_EliminaCategoria() {
         _funkoRepo.Setup(x => x.GetPagedAsync(It.IsAny<FunkoFilterRequest>()))
             .ReturnsAsync((new List<Funko>(), 0));
-        _repo.Setup(x => x.DeleteAsync("Anime000001"))
+        _repo.Setup(x => x.DeleteAsync("VQGCKyvzIM4"))
             .ReturnsAsync(Result.Success<bool, DomainError>(true));
 
-        var resultado = await _service.Delete("Anime000001");
+        var resultado = await _service.Delete("VQGCKyvzIM4");
 
         resultado.IsSuccess.Should().BeTrue();
         resultado.Value.Should().BeTrue();
-        _repo.Verify(x => x.DeleteAsync("Anime000001"), Times.Once);
+        _repo.Verify(x => x.DeleteAsync("VQGCKyvzIM4"), Times.Once);
     }
 
     [Test]
     public async Task GetAll_DevuelvePaginaConTotal() {
         var categorias = new List<Categoria> {
-            new() { Id = "Anime000001", Nombre = "Anime", CreatedAt = DateTime.UtcNow }
+            new() { Id = "VQGCKyvzIM4", Nombre = "Anime", CreatedAt = DateTime.UtcNow }
         };
         _repo.Setup(x => x.GetPagedAsync(It.IsAny<CategoriaFilterRequest>()))
             .ReturnsAsync((categorias, 1));

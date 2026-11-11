@@ -86,7 +86,7 @@ public class FunkoCreateValidatorTests {
 
     private static FunkoCreateRequest Valido() => new() {
         Name = "Kirito", Precio = 15.99m, Stock = 10,
-        CategoriaId = "Anime000001", ProveedorId = "672f1a8b3c9d4e5f6a7b8c9d",
+        CategoriaId = "VQGCKyvzIM4", ProveedorId = "672f1a8b3c9d4e5f6a7b8c9d",
         Imagen = "/uploads/funkos/a.png"
     };
 }

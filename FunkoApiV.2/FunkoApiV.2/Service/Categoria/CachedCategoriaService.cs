@@ -9,8 +9,7 @@ namespace FunkoApiV._2.Service;
 
 public class CachedCategoriaService(
     ICategoriaService inner,
-    ICacheService cache,
-    IFunkoRepository funkoRepo
+    ICacheService cache
 ) : ICategoriaService {
     private static string ByIdKey(string id) => $"categoria:{id}";
 

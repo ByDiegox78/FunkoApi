@@ -8,10 +8,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
 
     <style>
-        * {
-            box-sizing: border-box;
-        }
-
+        * { box-sizing: border-box; }
         body {
             margin: 0;
             padding: 30px 15px;
@@ -19,16 +16,8 @@
             background: #fff0f5;
             color: #333;
         }
-
-        main {
-            max-width: 850px;
-            margin: auto;
-        }
-
-        h1, h2 {
-            color: #c2185b;
-        }
-
+        main { max-width: 850px; margin: auto; }
+        h1, h2 { color: #c2185b; }
         section {
             padding: 22px;
             margin-bottom: 20px;
@@ -36,20 +25,17 @@
             border: 2px solid #ffb6c1;
             border-radius: 16px;
         }
-
         label {
             display: block;
             margin: 14px 0 6px;
             font-weight: bold;
         }
-
         input {
             width: 100%;
             padding: 11px;
             border: 1px solid #aaa;
             border-radius: 8px;
         }
-
         button {
             padding: 11px 18px;
             margin: 15px 8px 0 0;
@@ -59,23 +45,13 @@
             color: white;
             cursor: pointer;
         }
-
-        button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
         .status {
             padding: 10px;
             background: #f5f5f5;
             border-radius: 8px;
         }
-
-        #receivedMessages {
-            max-height: 400px;
-            overflow-y: auto;
-        }
-
+        #receivedMessages { max-height: 400px; overflow-y: auto; }
         .message {
             padding: 12px;
             margin: 12px 0;
@@ -89,94 +65,65 @@
 
 <body>
 <main>
-    <h1>🎀 Notificaciones de FunkoApi</h1>
+    <h1>Notificaciones de FunkoApi</h1>
 
     <section>
         <h2>1. Iniciar sesión como administrador</h2>
-
         <p id="authStatus" class="status">Sin autenticación</p>
-
         <label for="email">Email</label>
-        <input id="email" type="email" autocomplete="username"
-               placeholder="Email del administrador">
-
+        <input id="email" type="email" autocomplete="username" placeholder="Email del administrador">
         <label for="password">Contraseña</label>
-        <input id="password" type="password"
-               autocomplete="current-password">
-
+        <input id="password" type="password" autocomplete="current-password">
         <button id="btnLogin" onclick="doLogin()">Iniciar sesión</button>
     </section>
 
     <section>
         <h2>2. Conectar a SignalR</h2>
-
         <p id="signalrStatus" class="status">SignalR desconectado</p>
-
         <label for="token">JWT — también puedes pegarlo manualmente</label>
-        <input id="token" type="password" autocomplete="off"
-               placeholder="Token JWT, sin el prefijo Bearer">
-
+        <input id="token" type="password" autocomplete="off" placeholder="Token JWT, sin el prefijo Bearer">
         <label for="hubUrl">URL del hub</label>
         <input id="hubUrl" type="text">
-
         <button id="btnConnect" onclick="connectSignalR()">Conectar</button>
-        <button id="btnDisconnect" onclick="disconnectSignalR()" disabled>
-            Desconectar
-        </button>
+        <button id="btnDisconnect" onclick="disconnectSignalR()" disabled>Desconectar</button>
     </section>
 
     <section>
         <h2>3. Notificaciones recibidas</h2>
-        <p>
-            Cuando estés conectado, crea un funko desde Swagger o Bruno.
-            Aquí aparecerá el evento <strong>FunkoCreado</strong>.
-        </p>
+        <p>Conecta y crea un Funko desde Swagger. Aquí aparecerá el evento <strong>FunkoCreado</strong>.</p>
         <div id="receivedMessages"></div>
     </section>
 </main>
 
 <script>
-    const API_URL = 'http://localhost:5197';
+    const API_URL = window.location.origin;
     let connection = null;
-
-    // Ruta publicada en Program.cs.
-    document.getElementById('hubUrl').value =
-        `${API_URL}/hubs/funkos`;
+    document.getElementById('hubUrl').value = `${API_URL}/hubs/funkos`;
 
     async function doLogin() {
         const email = document.getElementById('email').value.trim();
         const password = document.getElementById('password').value;
-        const btn = document.getElementById('btnLogin');
+        const button = document.getElementById('btnLogin');
         const status = document.getElementById('authStatus');
-
         if (!email || !password) {
             alert('Introduce el email y la contraseña.');
             return;
         }
-
-        btn.disabled = true;
+        button.disabled = true;
         status.textContent = 'Autenticando...';
-
         try {
             const response = await fetch(`${API_URL}/api/auth/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password })
             });
-
             const data = await response.json();
-
             if (response.ok && data.token) {
                 document.getElementById('token').value = data.token;
                 status.textContent = `${data.email} (${data.role})`;
                 addMessage('SISTEMA', 'Login correcto. Ya puedes conectar al hub.');
-
-                if (data.role !== 'ADMIN') {
-                    addMessage(
-                        'AVISO',
-                        'Este hub solo permite conexiones con el rol ADMIN.'
-                    );
-                }
+                if (data.role !== 'ADMIN')
+                    addMessage('AVISO', 'Esta demo requiere una cuenta ADMIN.');
             } else {
                 document.getElementById('token').value = '';
                 status.textContent = 'Error de autenticación';
@@ -186,76 +133,51 @@
             status.textContent = 'Error de conexión';
             addMessage('ERROR', error.message);
         } finally {
-            btn.disabled = false;
+            button.disabled = false;
         }
     }
 
     async function connectSignalR() {
         const hubUrl = document.getElementById('hubUrl').value.trim();
         const token = document.getElementById('token').value.trim();
-        const btnConnect = document.getElementById('btnConnect');
-        const btnDisconnect = document.getElementById('btnDisconnect');
+        const button = document.getElementById('btnConnect');
+        const disconnectButton = document.getElementById('btnDisconnect');
         const status = document.getElementById('signalrStatus');
-
         if (!hubUrl || !token) {
             alert('Introduce la URL del hub y un JWT de administrador.');
             return;
         }
-
-        btnConnect.disabled = true;
+        button.disabled = true;
         status.textContent = 'Conectando...';
-
         try {
             connection = new signalR.HubConnectionBuilder()
-                .withUrl(hubUrl, {
-                    accessTokenFactory: () => token
-                })
+                .withUrl(hubUrl, { accessTokenFactory: () => token })
                 .withAutomaticReconnect([0, 1000, 5000, 10000])
                 .configureLogging(signalR.LogLevel.Information)
                 .build();
-
-            // Debe coincidir con SendAsync("FunkoCreado", notificacion).
-            // Se registra ANTES de iniciar la conexión.
-            connection.on('FunkoCreado', (data) => {
-                addMessage(
-                    '📦 FUNKO CREADO',
-                    JSON.stringify(data, null, 2)
-                );
-            });
-
-            // Mensajes enviados por los métodos de ejemplo de FunkoHub.
-            connection.on('ReceiveMessage', (usuario, mensaje, fecha) => {
-                addMessage(usuario, `${mensaje}\n${fecha}`);
-            });
-
-            connection.onreconnecting(() => {
-                status.textContent = 'Reconectando...';
-            });
-
+            connection.on('FunkoCreado', data =>
+                addMessage('FUNKO CREADO', JSON.stringify(data, null, 2)));
+            connection.on('ReceiveMessage', message =>
+                addMessage('MENSAJE', message));
+            connection.onreconnecting(() => status.textContent = 'Reconectando...');
             connection.onreconnected(() => {
                 status.textContent = 'Conectado';
                 addMessage('SISTEMA', 'Conexión recuperada.');
             });
-
             connection.onclose(() => {
                 status.textContent = 'Desconectado';
-                btnConnect.disabled = false;
-                btnDisconnect.disabled = true;
+                button.disabled = false;
+                disconnectButton.disabled = true;
                 addMessage('SISTEMA', 'Conexión cerrada.');
             });
-
             await connection.start();
-
             status.textContent = 'Conectado';
-            btnDisconnect.disabled = false;
-            addMessage(
-                'SISTEMA',
-                'Conectado al hub. Esperando notificaciones de nuevos funkos.'
-            );
+            disconnectButton.disabled = false;
+            addMessage('SISTEMA', 'Conectado al hub; esperando Funkos nuevos.');
         } catch (error) {
             status.textContent = 'Error de conexión';
-            btnConnect.disabled = false;
-            btnDisconnect.disabled = true;
+            button.disabled = false;
+            disconnectButton.disabled = true;
             addMessage('ERROR', error.message);
         }
     }
@@ -269,12 +191,9 @@
 
     function addMessage(prefix, content) {
         const container = document.getElementById('receivedMessages');
-        const timestamp = new Date().toLocaleTimeString();
         const message = document.createElement('div');
-
         message.className = 'message';
-        message.textContent = `[${timestamp}] ${prefix}\n${content}`;
-
+        message.textContent = `[${new Date().toLocaleTimeString()}] ${prefix}\n${content}`;
         container.appendChild(message);
         container.scrollTop = container.scrollHeight;
     }

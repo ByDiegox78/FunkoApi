@@ -29,7 +29,7 @@ body:json {
 
 script:post-response {
   if (res.status === 200 && res.body && res.body.role === "ADMIN" && res.body.token) {
-    bru.setVar("adminToken", res.body.token);
+    bru.setEnvVar("adminToken", res.body.token);
   }
 }
 

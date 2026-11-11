@@ -1,13 +1,22 @@
 meta {
   name: Eliminar categoria con funkos (409)
   type: http
-  seq: 3
+  seq: 4
 }
 
 delete {
   url: {{baseUrl}}/api/categorias/{{categoriaId}}
   body: none
-  auth: none
+}
+
+auth:bearer {
+  token: {{adminToken}}
+}
+
+script:pre-request {
+  const token = bru.getEnvVar("adminToken");
+  if (!token) throw new Error("Inicia sesión como ADMIN antes de eliminar categorías.");
+  req.setHeader("Authorization", `Bearer ${token}`);
 }
 
 tests {

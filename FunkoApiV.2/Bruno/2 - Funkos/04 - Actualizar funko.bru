@@ -7,7 +7,16 @@ meta {
 put {
   url: {{baseUrl}}/api/funkos/{{funkoIdCreado}}
   body: json
-  auth: none
+}
+
+auth:bearer {
+  token: {{adminToken}}
+}
+
+script:pre-request {
+  const token = bru.getEnvVar("adminToken");
+  if (!token) throw new Error("Inicia sesión como ADMIN antes de actualizar funkos.");
+  req.setHeader("Authorization", `Bearer ${token}`);
 }
 
 body:json {

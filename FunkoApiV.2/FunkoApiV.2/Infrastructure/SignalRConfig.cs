@@ -3,9 +3,11 @@ namespace FunkoApiV._2.Infrastructure;
 
 public static class SignalRConfig {
 
-    public static IServiceCollection AddRealtimeSignalR(this IServiceCollection services) {
+    public static IServiceCollection AddRealtimeSignalR(
+        this IServiceCollection services,
+        bool isDevelopment) {
         services.AddSignalR(options => {
-            options.EnableDetailedErrors = true;
+            options.EnableDetailedErrors = isDevelopment;
             options.KeepAliveInterval = TimeSpan.FromSeconds(30);
             options.ClientTimeoutInterval = TimeSpan.FromSeconds(60);
         });

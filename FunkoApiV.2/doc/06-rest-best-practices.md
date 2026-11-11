@@ -1,93 +1,47 @@
-# 📄 doc/06 — Mejores Prácticas REST
+# 06 — REST: contrato y buenas prácticas
 
----
+## Recursos y formatos de ID
 
-## 1. Recursos y URLs
+- Funko: `long` incremental en PostgreSQL.
+- Categoría: cadena de 11 caracteres.
+- Proveedor: ObjectId Mongo de 24 caracteres hexadecimales.
 
-| Recurso | URL base | ID |
-|---------|----------|-----|
-| Funko | `/api/funkos` | `int` (auto) |
-| Categoría | `/api/categorias` | `string` (YouTube 11 chars) |
-| Proveedor | `/api/Proveedor` | `string` (ObjectId 24 chars) |
+Las rutas y permisos exactos están documentados en los controladores de
+`FunkoApiV.2/Controller/` y en Swagger.
 
-> 📌 No se usa versionado `api/v1` hardcodeado en la ruta.
+La lectura de Funkos/categorías es pública, mientras que las acciones del
+controlador de Proveedores requieren `ADMIN`, también sus lecturas.
 
----
+## Métodos y respuestas
 
-## 2. Métodos HTTP
+| Método | Uso | Respuesta habitual |
+|---|---|---|
+| GET | Listar / consultar | 200 |
+| POST | Crear | 201 |
+| PUT | Actualizar | 200 |
+| PATCH | Reemplazar imagen | 200 |
+| DELETE | Borrado lógico o eliminación según entidad | 204 |
 
-| Método | Uso | Cuerpo request | Cuerpo response |
-|--------|-----|----------------|-----------------|
-| GET | Leer (listar/obtener) | Ninguno | DTO o lista paginada |
-| POST | Crear | RequestDto | ResponseDto + 201 |
-| PUT | Actualizar completo | RequestDto | ResponseDto + 200 |
-| DELETE | Borrar lógico | Ninguno | 204 No Content |
-| PATCH | Actualizar parcial (imagen) | Form-data | ResponseDto + 200 |
+Una categoría con Funkos asociados no se puede borrar y devuelve 409. Las
+solicitudes inválidas devuelven 400. La API utiliza paginación en Funkos y
+categorías; los límites y nombres de query parameters están en
+`Dto/Funko/FunkoFilterRequest.cs` y `Dto/Categoria/`.
 
----
+## Filtros, orden y coste
 
-## 3. Paginación
+El repositorio construye consultas filtradas en PostgreSQL; los filtros de
+proveedor cruzan datos Mongo/Cassandra según la operación. Evita cargar todas
+las filas si la API ofrece página y tamaño. Los índices y la inicialización de
+esquema se describen en [Seguridad HTTP](17-seguridad-http.md).
 
-```csharp
-public record FunkoFilterRequest {
-    public string? Nombre { get; init; }
-    public string? CategoriaId { get; init; }
-    public string? ProveedorId { get; init; }
-    public decimal? PrecioMin { get; init; }
-    public decimal? PrecioMax { get; init; }
-    public int Page { get; init; } = 0;
-    public int Size { get; init; } = 10;
-}
-```
+## Eliminación
 
-**Respuesta paginada:**
-```csharp
-public record PagedResult<T> {
-    public IReadOnlyList<T> Items { get; init; } = [];
-    public int TotalCount { get; init; }
-    public int Page { get; init; }
-    public int PageSize { get; init; }
-    public int TotalPages => PageSize > 0 ? (int)Math.Ceiling((double)TotalCount / PageSize) : 0;
-    public bool HasNextPage => Page + 1 < TotalPages;
-    public bool HasPreviousPage => Page > 0;
-}
-```
+Funkos y categorías utilizan `IsDeleted` y consultas que excluyen eliminados por
+defecto. Proveedores también disponen de una operación de baja lógica propia.
+Consulta [Borrado lógico](13-borrado-logico.md) antes de cambiar esta semántica.
 
-> 🛡️ **Clamp defensivo**: `Math.Clamp(filter.Size, 1, 100)` para evitar abusos del cliente.
+## Imágenes
 
----
-
-## 4. Filtros dinámicos
-
-```csharp
-query = query.Include(f => f.Categoria);
-
-if (!string.IsNullOrWhiteSpace(filter.Nombre))
-    query = query.Where(f => EF.Functions.ILike(f.Name, $"%{filter.Nombre}%"));
-
-if (!string.IsNullOrWhiteSpace(filter.CategoriaId))
-    query = query.Where(f => f.CategoriaId == filter.CategoriaId);
-```
-
----
-
-## 5. Soft Delete
-
-- Las entidades tienen propiedad `IsDeleted` (bool)
-- Filtro global en `DbContext`: `HasQueryFilter(f => !f.IsDeleted)`
-- `DELETE` no elimina físicamente: marca `IsDeleted = true`
-- Para ver borrados: `IgnoreQueryFilters()` + `IncludeDeleted = true`
-
----
-
-## 6. Concurrencia optimista
-
-Entidad con `byte[] RowVersion` (PostgreSQL `bytea`) para detectar conflictos de actualización simultánea.
-
----
-
-## 7. Imágenes
-
-- En BD solo se guarda la **ruta relativa** (ej. `/uploads/funkos/placeholder.png`)
-- Nunca se guarda el archivo binario en BD
-- Las imágenes reales se almacenan en sistema de archivos o almacenamiento externo
+La API guarda referencias/rutas, no el binario de imagen dentro de PostgreSQL.
+Las acciones de carga reciben `multipart/form-data`; Swagger permite explorar
+el contrato en Development.

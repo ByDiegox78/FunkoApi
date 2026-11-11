@@ -7,7 +7,16 @@ meta {
 delete {
   url: {{baseUrl}}/api/Proveedor/{{proveedorIdCreado}}
   body: none
-  auth: none
+}
+
+auth:bearer {
+  token: {{adminToken}}
+}
+
+script:pre-request {
+  const token = bru.getEnvVar("adminToken");
+  if (!token) throw new Error("Inicia sesión como ADMIN antes de eliminar proveedores.");
+  req.setHeader("Authorization", `Bearer ${token}`);
 }
 
 tests {

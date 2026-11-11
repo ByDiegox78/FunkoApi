@@ -25,6 +25,7 @@ public class FunkosHub(ILogger<FunkosHub> log) : Hub {
             log.LogInformation("Cliente desconectado: {ConnectionId}", Context.ConnectionId);
         await base.OnDisconnectedAsync(exception);
     }
+    [Authorize(Roles = "ADMIN")]
     public async Task SendMessage(string message) {
         await Clients.All.SendAsync("ReceiveMessage", message);
     }

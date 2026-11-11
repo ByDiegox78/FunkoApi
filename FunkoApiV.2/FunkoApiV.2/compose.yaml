@@ -1,98 +1,128 @@
-﻿services:
-  # Base de datos PostgreSQL
+services:
   db:
     image: postgres:16-alpine
     container_name: funkoapi_postgres
-    restart: always
+    restart: unless-stopped
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     environment:
       POSTGRES_DB: funkos
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD in .env}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d funkos"]
-      interval: 3s
-      timeout: 3s
-      retries: 5
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d funkos"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - funko_net
+
   mongo_db:
     image: mongo:7
     container_name: funkoapi_mongo
-    restart: always
+    restart: unless-stopped
     ports:
-      - "27017:27017"
+      - "127.0.0.1:27017:27017"
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --eval 'db.adminCommand(\"ping\").ok' | grep 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
     volumes:
       - mongo_data:/data/db
     networks:
       - funko_net
+
   cassandra:
-    image: cassandra:latest
+    image: cassandra:5
     container_name: funkoapi_cassandra
-    restart: always
+    restart: unless-stopped
     ports:
-      - "9043:9042"
+      - "127.0.0.1:9043:9042"
     environment:
-      - CASSANDRA_CLUSTER_NAME=FunkoCluster
+      CASSANDRA_CLUSTER_NAME: FunkoCluster
+    healthcheck:
+      test: ["CMD-SHELL", "cqlsh localhost 9042 -e 'DESCRIBE KEYSPACES'"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 90s
     volumes:
       - cassandra_data:/var/lib/cassandra
     networks:
       - funko_net
-  # Cache Redis
+
   redis:
-    image: redis:latest
+    image: redis:7-alpine
     container_name: funkoapi_redis
+    restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
     volumes:
       - redis_data:/data
     networks:
       - funko_net
+
   mailpit:
     image: axllent/mailpit:latest
     container_name: funkoapi_mailpit
-    restart: always
+    profiles: ["development"]
     ports:
-      - "1025:1025"
-      - "8025:8025"
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
     networks:
       - funko_net
 
-  # API .NET (FunkoApi V.2)
   backend:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: funkoapi_backend
-    restart: always
+    restart: unless-stopped
     ports:
-      - "5197:8080"
+      - "127.0.0.1:5197:8080"
     environment:
-      - ASPNETCORE_ENVIRONMENT=Production
-      - ConnectionStrings__Postgre=Host=db;Port=5432;Database=funkos;Username=postgres;Password=postgres
-      - ConnectionStrings__Redis=redis:6379
-      - ConnectionStrings__Mongo=mongodb://mongo_db:27017
-      - Cassandra__Hosts__0=cassandra
-      - Cassandra__Port=9042
-      - Smtp__Host=smtp.gmail.com
-      - Smtp__Port=587
-      - Smtp__Username=oms04081974@gmail.com
-      - Smtp__Password=ersvficvfajtehbc        
-      - Smtp__From=oms04081974@gmail.com
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__Postgre: Host=db;Port=5432;Database=funkos;Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD in .env}
+      ConnectionStrings__Redis: redis:6379
+      ConnectionStrings__Mongo: mongodb://mongo_db:27017
+      Cassandra__Hosts__0: cassandra
+      Cassandra__Port: 9042
+      Jwt__Key: ${JWT_KEY:?Define JWT_KEY in .env}
+      Cors__AllowedOrigins__0: ${CORS_ALLOWED_ORIGIN_0:?Define CORS_ALLOWED_ORIGIN_0 in .env}
+      Cors__AllowedOrigins__1: ${CORS_ALLOWED_ORIGIN_1:-}
+      Cors__AllowedOrigins__2: ${CORS_ALLOWED_ORIGIN_2:-}
+      Cors__AllowedOrigins__3: ${CORS_ALLOWED_ORIGIN_3:-}
+      Cors__AllowedOrigins__4: ${CORS_ALLOWED_ORIGIN_4:-}
+      BootstrapAdmin__Email: ${BOOTSTRAP_ADMIN_EMAIL:?Define BOOTSTRAP_ADMIN_EMAIL in .env}
+      BootstrapAdmin__Password: ${BOOTSTRAP_ADMIN_PASSWORD:?Define BOOTSTRAP_ADMIN_PASSWORD in .env}
+      BootstrapAdmin__FirstName: ${BOOTSTRAP_ADMIN_FIRST_NAME:?Define BOOTSTRAP_ADMIN_FIRST_NAME in .env}
+      BootstrapAdmin__LastName: ${BOOTSTRAP_ADMIN_LAST_NAME:?Define BOOTSTRAP_ADMIN_LAST_NAME in .env}
+      Smtp__Host: ${SMTP_HOST:?Define SMTP_HOST in .env}
+      Smtp__Port: ${SMTP_PORT:-587}
+      Smtp__Security: ${SMTP_SECURITY:-StartTls}
+      Smtp__Username: ${SMTP_USERNAME:?Define SMTP_USERNAME in .env}
+      Smtp__Password: ${SMTP_PASSWORD:?Define SMTP_PASSWORD in .env}
+      Smtp__From: ${SMTP_FROM:?Define SMTP_FROM in .env}
     depends_on:
       db:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
       mongo_db:
-        condition: service_started
+        condition: service_healthy
       cassandra:
-        condition: service_started
-      mailpit:
-        condition: service_started
+        condition: service_healthy
     networks:
       - funko_net
 

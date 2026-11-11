@@ -36,7 +36,7 @@ public class ProveedorService(
         log.LogDebug("Añadiendo proveedor: {@Prov}", proveedor);
         var validation = await validator.ValidateAsync(proveedor);
         if (!validation.IsValid) {
-            log.LogWarning("Validación fallida al crear funko: {@Errors}", validation.Errors);
+            log.LogWarning("Validación fallida al crear proveedor: {@Errors}", validation.Errors);
             return Result.Failure<ProveedorResponseDto, DomainError>(
                 new ValidationError(validation.Errors[0].ErrorMessage));
         }
@@ -49,16 +49,16 @@ public class ProveedorService(
 
         var validation = await validator.ValidateAsync(proveedor);
         if (!validation.IsValid) {
-            log.LogWarning("Validación fallida al actualizar funko {Id}: {@Errors}", id, validation.Errors);
+            log.LogWarning("Validación fallida al actualizar proveedor {Id}: {@Errors}", id, validation.Errors);
             return Result.Failure<ProveedorResponseDto, DomainError>(
                 new ValidationError(validation.Errors[0].ErrorMessage));
         }
-        log.LogDebug("Realizando actualizacion del funko con id: {@Id}", id);
+        log.LogDebug("Realizando actualización del proveedor con id: {@Id}", id);
         return (await repo.Update(id, proveedor.ToModel())).Map(p => p.ToDto());
     }
 
     public async Task<Result<bool, DomainError>> SoftDelete(string id) {
-        log.LogDebug("Eliminando proeedor con id: {@Id}", id);
+        log.LogDebug("Eliminando proveedor con id: {@Id}", id);
         var tieneFunkos = await TieneFunkos(id);
         if (tieneFunkos.IsFailure) {
             return tieneFunkos;

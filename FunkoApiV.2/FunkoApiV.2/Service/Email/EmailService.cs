@@ -12,6 +12,11 @@ public class EmailService(IOptions<SmtpSettings> options, ILogger<EmailService> 
     private readonly SmtpSettings _settings = options.Value;
     
     public async Task SendEmailAsync(EmailMessage message) {
+        if (!Enum.TryParse<SecureSocketOptions>(_settings.Security, true, out var security)) {
+            throw new InvalidOperationException(
+                $"El modo de seguridad SMTP '{_settings.Security}' no es válido.");
+        }
+
         var mimeMessage = new MimeMessage {
             Subject = message.Subject,
             Body = new TextPart(message.IsHtml ? TextFormat.Html : TextFormat.Plain) {
@@ -25,9 +30,15 @@ public class EmailService(IOptions<SmtpSettings> options, ILogger<EmailService> 
             await smtpClient.ConnectAsync(
                 _settings.Host,
                 _settings.Port,
-                SecureSocketOptions.StartTls);
-            if (!string.IsNullOrEmpty(_settings.Username)) {
-                await smtpClient.AuthenticateAsync(_settings.Username, _settings.Password);
+                security);
+            var username = _settings.Username;
+            var password = _settings.Password;
+            if (string.IsNullOrWhiteSpace(username) != string.IsNullOrWhiteSpace(password)) {
+                throw new InvalidOperationException(
+                    "La autenticación SMTP requiere configurar usuario y contraseña.");
+            }
+            if (!string.IsNullOrWhiteSpace(username) && !string.IsNullOrWhiteSpace(password)) {
+                await smtpClient.AuthenticateAsync(username, password);
             }
             await smtpClient.SendAsync(mimeMessage);
             await smtpClient.DisconnectAsync(true);

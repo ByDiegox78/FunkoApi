@@ -1,99 +1,37 @@
-# 📄 doc/04 — Controladores REST
+# 04 — Controladores REST
 
----
+## Rutas principales
 
-## 1. Estructura del controller
+| Recurso | Ruta | Nota |
+|---|---|---|
+| Funkos | `/api/funkos` | ID `long`; filtros y paginación en query |
+| Categorías | `/api/categorias` | ID string de 11 caracteres |
+| Proveedores | `/api/Proveedor` | ID Mongo ObjectId de 24 caracteres hex |
+| Autenticación | `/api/auth` | Registro, login y usuario actual |
 
-```csharp
-[ApiController]
-[Route("api/funkos")]
-[Produces("application/json")]
-public class FunkoController(
-    IFunkoService service,
-    ILogger<FunkoController> logger
-) : ControllerBase
-{
-    [HttpGet("{id:int}")]
-    [ProducesResponseType(typeof(FunkoResponseDto), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [AllowAnonymous]
-    public async Task<ActionResult<FunkoResponseDto>> GetById(int id)
-    {
-        logger.LogInformation("Obteniendo funko con ID: {Id}", id);
-        var resultado = await service.GetById(id);
-        return resultado.Match(
-            onSuccess: funko => funko,
-            onFailure: error => error.TopHttpResult<FunkoResponseDto>()
-        );
-    }
-}
-```
+El código real está en `FunkoApiV.2/Controller/`. Los métodos declaran códigos
+de respuesta para Swagger y delegan la lógica a servicios.
 
----
+## Autenticación
 
-## 2. Reglas de los controladores
+Las lecturas de listas de Funkos y categorías son públicas; la lectura de un
+Funko por ID y todas las acciones actuales de Proveedor requieren `ADMIN`.
+Las escrituras principales también requieren ese rol. La carga de imagen está
+marcada como pública en el controlador actual. Revisa los atributos
+`[Authorize]` de cada acción antes de asumir permisos.
 
-| Regla | Detalle |
-|-------|---------|
-| Retorno tipado | `Task<ActionResult<TDto>>`, nunca `IActionResult` sin tipar |
-| Éxito | `Match(onSuccess, onFailure)` con `TopHttpResult<T>()` centralizado |
-| Created | `CreatedAtAction(nameof(GetById), new { id = ... }, dto)` |
-| Borrado | `NoContent()` en éxito |
-| Documentación | `[ProducesResponseType]` por cada código de estado |
-| Autorización | `[Authorize(Policy = "RequireAdminRole")]` / `[AllowAnonymous]` explícita |
-| Un controller por agregado | `FunkoController` → `IFunkoService`, nunca mezcla servicios |
+## Respuestas y validación
 
----
+- Creación correcta: HTTP 201 cuando corresponde.
+- Lectura/actualización correcta: HTTP 200.
+- Borrado correcto: HTTP 204.
+- Entrada no válida: HTTP 400 con `ApiErrorResponse`.
+- Errores de negocio se convierten en estados HTTP desde
+  `Error/DomainErrorExtensions.cs`.
+- Subida de archivo utiliza `multipart/form-data`; los parámetros `IFormFile`
+  no se marcan conjuntamente con `[FromForm]` en la acción para permitir la
+  generación correcta del documento Swagger.
 
-## 3. Traducción de errores a HTTP
-
-Extensión centralizada en `Error/DomainErrorExtensions.cs`:
-
-```csharp
-public static ActionResult<T> TopHttpResult<T>(this DomainError error) => error switch
-{
-    NotFound => new NotFoundObjectResult(new { message = error.Message }),
-    ValidationError => new BadRequestObjectResult(new { message = error.Message }),
-    Conflict => new ConflictObjectResult(new { message = error.Message }),
-    BusinessRuleError => new UnprocessableEntityObjectResult(new { message = error.Message }),
-    UnauthorizedError => new UnauthorizedObjectResult(new { message = error.Message }),
-    _ => new ObjectResult(new { message = "Error interno del servidor" }) { StatusCode = 500 }
-};
-```
-
-**Códigos HTTP:**
-| Error de dominio | HTTP | Cuándo |
-|------------------|------|--------|
-| `NotFoundError` | 404 | Recurso inexistente |
-| `ValidationError` | 400 | Fallo de validación |
-| `ConflictError` | 409 | Duplicado / conflicto de estado |
-| `BusinessRuleError` | 422 | Regla de negocio incumplida |
-| `UnauthorizedError` | 401 | Sin autenticar |
-| `InternalError` | 500 | Fallo del servidor |
-
----
-
-## 4. Endpoints por entidad
-
-### Funko (`/api/funkos`)
-- `GET` — Listar paginado con filtros (público)
-- `GET {id}` — Obtener por ID (Admin)
-- `POST` — Crear (Admin)
-- `PUT {id}` — Actualizar (Admin)
-- `DELETE {id}` — Borrado lógico (Admin)
-- `POST /imagen` — Subir imagen
-- `PATCH {id}/imagen` — Actualizar imagen
-
-### Categoría (`/api/categorias`)
-- `GET` — Listar paginado (público)
-- `GET {id}` — Obtener por ID (público)
-- `POST` — Crear (Admin)
-- `PUT {id}` — Actualizar (Admin)
-- `DELETE {id}` — Borrado lógico con validación de funkos asociados (Admin)
-
-### Proveedor (`/api/Proveedor`) — MongoDB
-- `GET` — Listar (público)
-- `GET {id}` — Obtener por ID (público)
-- `POST` — Crear (Admin)
-- `PUT {id}` — Actualizar (Admin)
-- `DELETE {id}` — Eliminar (Admin)
+La referencia de ejecución es Swagger en Development:
+<http://localhost:5798/swagger>. Para levantar la API, sigue
+[la guía práctica](00-guia-practica.md).

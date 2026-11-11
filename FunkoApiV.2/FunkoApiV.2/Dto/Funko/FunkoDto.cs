@@ -59,7 +59,6 @@ public record FunkoCreateRequest {
     public string Name { get; init; } = string.Empty;
 
     /// <summary>Precio entre 0,01 y 50,00.</summary>
-    [Range(typeof(decimal), "0.01", "50.0", ErrorMessage = "El precio debe estar entre 0.01 y 50.0")]
     public decimal Precio { get; init; }
 
     /// <summary>Identificador existente de categoría; exactamente 11 caracteres.</summary>

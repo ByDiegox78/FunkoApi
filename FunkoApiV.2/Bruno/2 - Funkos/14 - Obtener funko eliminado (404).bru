@@ -1,0 +1,29 @@
+meta {
+  name: Obtener funko eliminado (404)
+  type: http
+  seq: 14
+}
+
+get {
+  url: {{baseUrl}}/api/funkos/{{funkoIdCreado}}
+  body: none
+}
+
+auth:bearer {
+  token: {{adminToken}}
+}
+
+script:pre-request {
+  const token = bru.getEnvVar("adminToken");
+  if (!token) throw new Error("Inicia sesión como ADMIN antes de consultar por ID.");
+  req.setHeader("Authorization", `Bearer ${token}`);
+}
+
+tests {
+  test("funko eliminado responde 404", function() {
+    expect(res.status).to.equal(404);
+  });
+  test("respuesta de error tiene mensaje", function() {
+    expect(res.body.message).to.be.a("string").and.not.empty;
+  });
+}

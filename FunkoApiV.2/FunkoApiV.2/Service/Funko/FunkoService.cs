@@ -137,7 +137,7 @@ public class FunkoService(
     }
 
     public async Task<Result<bool, DomainError>> Delete(long id) {
-        log.LogInformation("Eliminando funko: {@Id}", id);
+        _log.LogInformation("Eliminando funko: {@Id}", id);
         var funko = await repo.GetByIdAsync(id);
         var borrado = await repo.DeleteAsync(id);
         if (borrado.IsSuccess && funko.IsSuccess) 
@@ -190,10 +190,10 @@ public class FunkoService(
             await hubContext.Clients
                 .Group("admins")
                 .SendAsync("FunkoCreado", notificacion);
-            log.LogInformation("Notificacion: Funko creado procediendo a enviar a admins");
+            _log.LogInformation("Notificacion: Funko creado procediendo a enviar a admins");
 
         } catch (Exception e) {
-            log.LogError(e, "Error: No se pudo enviar la notificacion");  
+            _log.LogError(e, "Error: No se pudo enviar la notificacion");
         }
     }
     

@@ -1,81 +1,35 @@
-# 📄 doc/08 — EF Core con PostgreSQL
+# 08 — EF Core y PostgreSQL
 
----
+## Qué almacena PostgreSQL
 
-## 1. DbContext
+PostgreSQL contiene Funkos, categorías y tablas de ASP.NET Core Identity. El
+contexto está en `FunkoApiV.2/Entity/AppDbContext.cs`; la conexión se obtiene de
+`ConnectionStrings:Postgre` mediante `FunkoConfig`.
 
-```csharp
-public class AppDbContext(DbContextOptions<AppDbContext> options) 
-    : IdentityDbContext<AppUser, IdentityRole<long>, long>
-{
-    public DbSet<Funko> Funkos { get; set; }
-    public DbSet<Categoria> Categorias { get; set; }
+## Inicialización actual
 
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
-    {
-        modelBuilder.Entity<Funko>(e => {
-            e.ToTable("funko");
-            e.HasKey(x => x.Id);
-            e.Property(x => x.Name).IsRequired().HasMaxLength(20);
-            e.Property(x => x.Precio).IsRequired().HasPrecision(20, 2);
-            e.Property(x => x.Imagen).HasMaxLength(255);
-            e.Property(x => x.CategoriaId).IsRequired().HasMaxLength(11);
-            e.Property(x => x.ProveedorId).IsRequired().HasMaxLength(24);
-            e.Property(x => x.IsDeleted).IsRequired().HasDefaultValue(false);
-            e.HasQueryFilter(f => !f.IsDeleted); // Soft delete global
-        });
+En cada inicio, `Program.cs` ejecuta `EnsureCreatedAsync` y
+`PostgresSchemaInitializer.EnsureSchemaAsync`. El inicializador crea tablas,
+extensión `pg_trgm` e índices si no existen. No se aplica aquí el flujo habitual
+de `dotnet ef migrations`; `CREATE TABLE IF NOT EXISTS` tampoco actualiza una
+tabla antigua que ya exista con una definición incompatible.
 
-        modelBuilder.Entity<Categoria>(e => {
-            e.ToTable("categoria");
-            e.HasKey(x => x.Id);
-            e.Property(x => x.Id).HasMaxLength(11); // ID tipo YouTube
-            e.Property(x => x.Nombre).IsRequired().HasMaxLength(100);
-            e.Property(x => x.IsDeleted).IsRequired().HasDefaultValue(false);
-            e.HasQueryFilter(c => !c.IsDeleted);
-        });
-    }
-}
-```
+Los índices actuales cubren claves relacionadas, filtros/ordenaciones de
+Funkos y búsquedas por texto mediante trigramas. El usuario PostgreSQL necesita
+permisos para crear los objetos/extensión requeridos en una instalación nueva.
 
----
+## Cambio de esquema
 
-## 2. Configuración de conexión
+Antes de cambiar una entidad:
 
-```csharp
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(FunkoConfig.PostgresConnection));
-```
+1. Revisa `AppDbContext` y `PostgresSchemaInitializer`.
+2. Considera tanto una base vacía como una que ya tenga tablas.
+3. Actualiza el esquema de forma compatible con la estrategia actual; no asumas
+   que una migración se ejecutará automáticamente.
+4. Añade o actualiza tests de modelo/repositorio.
+5. Si un esquema persistente no coincide, planifica su migración de manera
+   controlada; no borres volúmenes como método de actualización rutinario.
 
----
-
-## 3. Migraciones
-
-```powershell
-dotnet ef migrations add InitialCreate --project FunkoApiV.2
-dotnet ef database update --project FunkoApiV.2
-```
-
----
-
-## 4. Seed de datos
-
-Se siembran datos iniciales en `OnModelCreating` mediante `HasData`:
-
-```csharp
-e.HasData(
-    new Funko { Id = 1, Name = "Kirito", Precio = 15.99m, Stock = 10, ... },
-    new Categoria { Id = "Anime000001", Nombre = "Anime", ... }
-);
-```
-
----
-
-## 5. Reglas específicas
-
-| Regla | Implementación |
-|-------|---------------|
-| Tabla en snake_case | `e.ToTable("funko")`, `e.ToTable("categoria")` |
-| ID categoría YouTube | `HasMaxLength(11)` + generador personalizado |
-| Soft delete | `HasQueryFilter(f => !f.IsDeleted)` |
-| Precisión decimal | `HasPrecision(20, 2)` para precios |
-| Relación Funko → Categoría | Foreign key `CategoriaId`, `OnDelete(DeleteBehavior.Restrict)` |
+En Production no se borran datos al arrancar: solo se aplica el esquema y se
+aprovisiona el admin si no existe. Lee [Docker](19-docker.md) antes de iniciar
+ese entorno.

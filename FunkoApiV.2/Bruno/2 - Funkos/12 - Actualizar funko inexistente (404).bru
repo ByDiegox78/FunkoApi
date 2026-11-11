@@ -13,11 +13,17 @@ auth:bearer {
   token: {{adminToken}}
 }
 
+script:pre-request {
+  const token = bru.getEnvVar("adminToken");
+  if (!token) throw new Error("Inicia sesión como ADMIN antes de actualizar funkos.");
+  req.setHeader("Authorization", `Bearer ${token}`);
+}
+
 body:json {
   {
     "name": "No existe",
     "precio": 10,
-    "categoriaId": "Anime000001",
+    "categoriaId": "VQGCKyvzIM4",
     "proveedorId": "{{proveedorIdCreado}}",
     "stock": 1,
     "imagen": "/uploads/funkos/test.png"

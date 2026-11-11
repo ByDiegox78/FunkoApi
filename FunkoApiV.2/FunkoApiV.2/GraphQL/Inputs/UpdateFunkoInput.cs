@@ -8,7 +8,6 @@ public record UpdateFunkoInput {
     [MinLength(2, ErrorMessage = "El nombre debe tener al menos 2 caracteres")]
     public string Name { get; set; } = string.Empty;
     
-    [Range(typeof(decimal), "0.01", "50.0", ErrorMessage = "El precio debe estar entre 0.01 y 50.0")]
     public decimal Precio { get; set; }
     
     [Required(ErrorMessage = "El stock es obligatorio")]

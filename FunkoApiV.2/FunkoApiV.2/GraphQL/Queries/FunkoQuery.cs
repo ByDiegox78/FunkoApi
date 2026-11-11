@@ -7,28 +7,39 @@ using HotChocolate;
 namespace FunkoApiV._2.GraphQL.Queries;
 
 public class FunkoQuery {
-    public async Task<IReadOnlyList<FunkoDto>> GetFunkos(
-        [Service] IFunkoRepository funkoRepository) {
-        var funkos = await funkoRepository.GetAllAsync();
-        return funkos.Select(funko => funko.ToFunkoDto()).ToList();
-    }
-
-    public async Task<FunkoDto?> GetFunkoById(
-        long id,
-        [Service] IFunkoRepository funkoRepository) {
-        var result = await funkoRepository.GetByIdAsync(id);
-        return result.IsSuccess ? result.Value.ToFunkoDto() : null;
-    }
-
-    public async Task<PagedResult<FunkoDto>> GetFunkosPaged(
+    /// <summary>
+    /// Listado paginado de funkos con filtros opcionales.
+    /// Antes cargaba la tabla completa en memoria; ahora usa la misma consulta
+    /// paginada que la API REST para no traer más filas de las necesarias.
+    /// </summary>
+    public async Task<PagedResult<FunkoDto>> GetFunkos(
         [Service] IFunkoRepository funkoRepository,
         int page = 1,
-        int size = 10) {
+        int size = 10,
+        string? nombre = null,
+        string? categoriaId = null,
+        string? proveedorId = null,
+        decimal? precioMin = null,
+        decimal? precioMax = null,
+        int? stockMin = null,
+        string sortBy = "id",
+        string direction = "asc",
+        bool includeDeleted = false) {
         page = Math.Max(page, 1);
         size = Math.Clamp(size, 1, 100);
+
         var filter = new FunkoFilterRequest {
+            Nombre = nombre,
+            CategoriaId = categoriaId,
+            ProveedorId = proveedorId,
+            PrecioMin = precioMin,
+            PrecioMax = precioMax,
+            StockMin = stockMin,
             Page = page - 1,
-            Size = size
+            Size = size,
+            SortBy = sortBy,
+            Direction = direction,
+            IncludeDeleted = includeDeleted
         };
         var result = await funkoRepository.GetPagedAsync(filter);
 
@@ -38,6 +49,13 @@ public class FunkoQuery {
             Page = page,
             PageSize = size
         };
+    }
+
+    public async Task<FunkoDto?> GetFunkoById(
+        long id,
+        [Service] IFunkoRepository funkoRepository) {
+        var result = await funkoRepository.GetByIdAsync(id);
+        return result.IsSuccess ? result.Value.ToFunkoDto() : null;
     }
 
     public async Task<PagedResult<CategoriaDto>> GetCategoriasPaged(

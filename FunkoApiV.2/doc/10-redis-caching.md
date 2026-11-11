@@ -1,95 +1,30 @@
-# 📄 doc/10 — Caché Redis
+# 10 — Redis y caché de aplicación
 
----
+## Uso actual
 
-## 1. Patrón Cache-Aside
+Redis está registrado como almacén de caché distribuida y `ICacheService` se
+registra como singleton. Los decoradores de `IFunkoService`,
+`ICategoriaService` e `IProveedorService` gestionan las claves y la invalidación.
 
-```
-Request → Service → ¿Caché hit? → Devolver caché
-                          ↓ no
-                          Repositorio → BD → Guardar en caché → Devolver
-```
+- Funkos: ficha por ID; los listados filtrados/paginados no se cachean.
+- Categorías: ficha por ID; los listados no se cachean.
+- Proveedores: ficha, listado y datos eliminados tienen claves diferenciadas.
+- Las escrituras eliminan las claves afectadas.
 
----
+Las claves concretas y el comportamiento están en
+`Service/Funko/CachedFunkoService.cs`,
+`Service/Categoria/CachedCategoriaService.cs`,
+`Service/Proveedor/CachedProveedorService.cs` y la implementación de
+`ICacheService`.
 
-## 2. Implementación
+## Caché no es Output Cache
 
-```csharp
-public class CachedFunkoService(IFunkoService inner, ICacheService cache) : IFunkoService
-{
-    private static string ByIdKey(int id) => $"funko:{id}";
+Redis aquí se usa para cachear datos de aplicación. El proyecto no registra
+Output Cache HTTP (`AddOutputCache` / `UseOutputCache`); no documentes ni esperes
+cabeceras o políticas de Output Cache.
 
-    public async Task<Result<FunkoResponseDto, DomainError>> GetById(int id)
-    {
-        var key = ByIdKey(id);
-        var cached = await cache.GetAsync<FunkoResponseDto>(key);
-        if (cached is not null)
-            return Result.Success<FunkoResponseDto, DomainError>(cached);
+## Reinicio y borrado
 
-        var result = await inner.GetById(id);
-        if (result.IsSuccess)
-            await cache.SetAsync(key, result.Value);
-        return result;
-    }
-
-    public async Task<Result<FunkoResponseDto, DomainError>> Update(int id, FunkoUpdateRequest request)
-    {
-        var result = await inner.Update(id, request);
-        if (result.IsSuccess)
-            await cache.RemoveAsync(ByIdKey(id)); // Invalidar
-        return result;
-    }
-
-    public async Task<Result<bool, DomainError>> Delete(int id)
-    {
-        var result = await inner.Delete(id);
-        if (result.IsSuccess)
-            await cache.RemoveAsync(ByIdKey(id)); // Invalidar
-        return result;
-    }
-}
-```
-
----
-
-## 3. Claves de caché
-
-| Clave | Contenido | TTL |
-|-------|-----------|-----|
-| `funko:{id}` | FunkoResponseDto | Configurable (ej. 10 min) |
-| `categoria:{id}` | CategoriaDto | Configurable |
-| `categorias:all` | Lista paginada | No se cachea (filtros variables) |
-
-> 📌 Los listados paginados **no se cachean** porque cada consulta con filtros distintos es única.
-
----
-
-## 4. Invalidación
-
-- **Create**: no invalida (nuevo registro)
-- **Update**: invalida `funko:{id}`
-- **Delete**: invalida `funko:{id}`
-
----
-
-## 5. Configuración Redis
-
-```csharp
-builder.Services.AddStackExchangeRedisCache(options =>
-    options.Configuration = FunkoConfig.RedisConnection);
-
-builder.Services.AddSingleton<ICacheService, RedisService>();
-```
-
----
-
-## 6. Servicio de caché
-
-```csharp
-public interface ICacheService
-{
-    Task<T?> GetAsync<T>(string key);
-    Task SetAsync<T>(string key, T value, TimeSpan? expiration = null, CancellationToken ct = default);
-    Task RemoveAsync(string key, CancellationToken ct = default);
-}
-```
+Redis usa `localhost:6379` en Development y el host `redis` en Compose. El
+arranque no vacía la caché en ningún entorno: las entradas expiran por TTL o se
+invalidan al modificar el recurso correspondiente.

@@ -1,49 +1,30 @@
-# 📄 doc/16 — Autorización por Roles
+# 16 — Autorización por roles
 
----
+## Roles actuales
 
-## 1. Rol Admin
+Identity usa los nombres exactos `ADMIN` y `USER` (en mayúsculas). Las
+políticas `RequireAdmin` y `RequireUser` se registran en
+`Infrastructure/IdentityConfig.cs`. Los controladores también pueden declarar
+directamente `[Authorize(Roles = "ADMIN")]`.
 
-Solo usuarios con rol `Admin` pueden realizar operaciones de escritura (POST, PUT, DELETE).
+## Regla de acceso
 
-```csharp
-[Authorize(Policy = "RequireAdminRole")]
-[HttpPost]
-public async Task<ActionResult> Create(...) { ... }
-```
+- Lecturas de colecciones de Funkos/categorías: públicas.
+- Proveedores: todas las acciones del controlador requieren `ADMIN`, también
+  listados y lecturas individuales.
+- Lectura de Funko por ID: requiere `ADMIN`.
+- Escrituras de Funkos y categorías y todas las acciones de proveedores:
+  requieren `ADMIN`.
+- Hub SignalR `/hubs/funkos`: requiere usuario autenticado.
+- Consultas GraphQL de lectura: públicas; mutaciones protegidas según el resolver.
 
----
+Los atributos de cada endpoint y las políticas del resolver son la fuente de
+verdad. No presupongas que todos los GET son públicos.
 
-## 2. Política
+## Respuestas
 
-```csharp
-options.AddPolicy("RequireAdminRole", policy =>
-    policy.RequireRole("Admin"));
-```
+- Sin token válido: `401 Unauthorized`.
+- Token válido sin el rol exigido: `403 Forbidden`.
 
----
-
-## 3. Matriz de permisos
-
-| Acción | Rol Admin | Usuario autenticado | Anónimo |
-|--------|-----------|---------------------|---------|
-| Leer funkos | ✅ | ✅ | ✅ |
-| Crear funko | ✅ | ❌ | ❌ |
-| Actualizar funko | ✅ | ❌ | ❌ |
-| Eliminar funko | ✅ | ❌ | ❌ |
-| Leer categorías | ✅ | ✅ | ✅ |
-| Crear categoría | ✅ | ❌ | ❌ |
-| Eliminar categoría | ✅ | ❌ | ❌ |
-| Leer proveedores | ✅ | ✅ | ✅ |
-| Gestionar proveedores | ✅ | ❌ | ❌ |
-
----
-
-## 4. Manejo de 403
-
-Cuando un usuario autenticado no tiene el rol requerido:
-
-```csharp
-ForbiddenError e => new ObjectResult(new { message = e.Message }) 
-    { StatusCode = StatusCodes.Status403Forbidden }
-```
+El registro asigna `USER`. En Production, el arranque elimina usuarios y no hay
+un ADMIN de ejemplo; planifica su provisión segura.

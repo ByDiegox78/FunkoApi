@@ -1,82 +1,35 @@
-# 📄 doc/05 — Validación en Cascada
+# 05 — Validación de solicitudes
 
----
+## Capas de validación actuales
 
-## 1. FluentValidation
+1. ASP.NET Core valida el model binding y las anotaciones del DTO.
+2. `Program.cs` convierte fallos del estado del modelo en HTTP 400 con
+   `ApiErrorResponse`, mensaje común y errores agrupados por campo.
+3. FluentValidation aplica reglas de cada solicitud; los validators se
+   registran desde el ensamblado de la API.
+4. Los servicios verifican reglas de negocio y relaciones que requieren leer
+   datos, como existencia de categoría y proveedor.
+5. Las restricciones del almacén protegen los datos persistidos.
 
-Se usa **FluentValidation** para validar los DTOs de entrada. Un validator por operación:
+## Validadores
 
-```
-CreateFunkoValidator  →  Valida FunkoCreateRequest
-UpdateFunkoValidator  →  Valida FunkoUpdateRequest
-CreateCategoriaValidator → Valida CategoriaRequestDto
-```
+- `Validator/FunkoCreateValidator.cs`: nombre, precio, stock, IDs relacionados e imagen.
+- `Validator/FunkoUpdateValidator.cs`: reglas equivalentes para actualizar.
+- `Validator/Categoria/CategoriaValidator.cs`: reglas de categorías.
+- `Validator/Proveedor/ProveedorValidator.cs`: nombre y dirección.
 
----
+Consulta estas clases antes de documentar un límite: las reglas pueden cambiar.
+Por ejemplo, los nombres y direcciones de proveedor tienen un máximo actual de
+20 caracteres.
 
-## 2. Ejemplo: FunkoCreateValidator
+## Añadir o cambiar una regla
 
-```csharp
-public class FunkoCreateValidator : AbstractValidator<FunkoCreateRequest>
-{
-    public FunkoCreateValidator()
-    {
-        RuleFor(p => p.Name)
-            .NotEmpty().WithMessage("El nombre es obligatorio")
-            .MinimumLength(2).WithMessage("El nombre debe tener al menos 2 caracteres")
-            .MaximumLength(20).WithMessage("El nombre no puede exceder 20 caracteres");
+1. Localiza el DTO y su validator.
+2. Decide si es una regla de forma (validator) o una regla de negocio
+   dependiente de datos (servicio).
+3. Devuelve un mensaje claro y coherente con los demás errores.
+4. Añade o actualiza el test de `FunkoApiV2Test/Unit/Validators/`.
+5. Valida también el contrato HTTP si afecta el status o el cuerpo de respuesta.
 
-        RuleFor(p => p.Precio)
-            .GreaterThan(0).WithMessage("El precio debe ser mayor a 0")
-            .LessThanOrEqualTo(50).WithMessage("El precio no puede exceder 50");
-
-        RuleFor(p => p.Stock)
-            .GreaterThanOrEqualTo(0).WithMessage("El stock no puede ser negativo");
-
-        RuleFor(p => p.CategoriaId)
-            .NotEmpty().WithMessage("La categoría es obligatoria")
-            .Length(11).WithMessage("El ID de categoría debe tener 11 caracteres");
-
-        RuleFor(p => p.ProveedorId)
-            .NotEmpty().WithMessage("El proveedor es obligatorio")
-            .Matches("^[a-fA-F0-9]{24}$").WithMessage("ID de proveedor inválido (ObjectId)");
-
-        RuleFor(p => p.Imagen)
-            .NotEmpty().WithMessage("La imagen es obligatoria")
-            .MaximumLength(255).WithMessage("La ruta de imagen es demasiado larga");
-    }
-}
-```
-
----
-
-## 3. Validación en la capa de Service
-
-El service valida antes de persistir:
-
-```csharp
-var validation = await createValidation.ValidateAsync(request);
-if (!validation.IsValid)
-{
-    var errors = validation.Errors
-        .GroupBy(e => e.PropertyName)
-        .ToDictionary(
-            g => g.Key,
-            g => g.Select(e => e.ErrorMessage).ToArray()
-        );
-    return Result.Failure<FunkoResponseDto, DomainError>(
-        new ValidationError("Errores de validación", errors)
-    );
-}
-```
-
----
-
-## 4. Cascada de validación
-
-1. **DTO**: Anotaciones `[Required]`, `[MaxLength]`, etc. (validación básica del modelo)
-2. **FluentValidation**: Reglas de negocio complejas (validación en el service)
-3. **Repository**: Restricciones de base de datos (longitud, tipos, foreign keys)
-4. **Service**: Reglas de dominio (borrado lógico, existencia de relaciones)
-
-> 📌 Los mensajes de validación están **en español**.
+Las reglas efectivas están en los validators y DTOs actuales; los ejemplos
+antiguos de este apunte no deben copiarse a ciegas.

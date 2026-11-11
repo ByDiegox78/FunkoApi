@@ -6,6 +6,7 @@ using FunkoApiV._2.Entity;
 using FunkoApiV._2.Error;
 using FunkoApiV._2.Models;
 using FunkoApiV._2.Service;
+using FunkoApiV._2.Service.Email;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
@@ -26,6 +27,7 @@ public class AuthServiceTests {
     private AppDbContext _context = null!;
     private Mock<UserManager<AppUser>> _userManager = null!;
     private Mock<SignInManager<AppUser>> _signInManager = null!;
+    private Mock<IEmailMessage> _emailService = null!;
     private AuthService _sut = null!;
 
     [SetUp]
@@ -48,11 +50,15 @@ public class AuthServiceTests {
             NullLogger<SignInManager<AppUser>>.Instance,
             Mock.Of<IAuthenticationSchemeProvider>(),
             Mock.Of<IUserConfirmation<AppUser>>());
+        _emailService = new Mock<IEmailMessage>();
+        _emailService.Setup(service => service.SendEmailAsync(It.IsAny<EmailMessage>()))
+            .Returns(Task.CompletedTask);
 
         _sut = new AuthService(
             _context,
             _userManager.Object,
             _signInManager.Object,
+            _emailService.Object,
             Options.Create(new JwtSettings {
                 Key = JwtKey, Issuer = "tests", Audience = "tests", ExpirationMin = 30
             }));
@@ -160,6 +166,8 @@ public class AuthServiceTests {
         result.Value.Email.Should().Be("new@example.com");
         _userManager.Verify(x => x.AddToRoleAsync(
             It.Is<AppUser>(u => u.Email == "new@example.com"), "USER"), Times.Once);
+        _emailService.Verify(service => service.SendEmailAsync(
+            It.Is<EmailMessage>(message => message.To == "new@example.com")), Times.Once);
     }
 
     [Test]

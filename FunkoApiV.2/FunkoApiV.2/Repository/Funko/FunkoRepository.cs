@@ -9,14 +9,6 @@ using Microsoft.EntityFrameworkCore;
 namespace FunkoApiV._2.Repository;
 
 public class FunkoRepository(AppDbContext context) : IFunkoRepository, IScopedService {
-    public async Task<IEnumerable<Funko>> GetAllAsync() {
-        return await context.Funkos
-            .Include(f => f.Categoria)
-            .OrderBy(f => f.Name)
-            .AsNoTracking()
-            .ToListAsync();
-    }
-
     public async Task<(IReadOnlyList<Funko> Items, int Total)> GetPagedAsync(FunkoFilterRequest filter) {
         IQueryable<Funko> query = context.Funkos.AsNoTracking();
 

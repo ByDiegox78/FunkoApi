@@ -1,98 +1,29 @@
-# 📄 doc/13 — Borrado Lógico y Reglas de Negocio
+# 13 — Borrado lógico y reglas de eliminación
 
----
+## Datos de negocio
 
-## 1. Problema
+- **Funko:** el endpoint DELETE marca el registro como eliminado; las consultas
+  normales excluyen los eliminados.
+- **Categoría:** se marca como eliminada solo cuando no tiene Funkos asociados.
+  Si existe alguno, la API responde `409 Conflict`.
+- **Proveedor:** usa operaciones de baja lógica propias del servicio MongoDB y
+  expone una consulta separada para proveedores eliminados.
 
-Al eliminar una categoría, no se pueden borrar los funkos asociados porque perderían su clasificación. Se utiliza **borrado lógico** (`IsDeleted`).
+Los detalles de filtrado están en los repositorios y servicios. Antes de
+modificar `IsDeleted`, comprueba filtros, caché y consultas cruzadas en
+PostgreSQL/MongoDB/Cassandra.
 
----
+## Datos de Production
 
-## 2. Implementación en Entidades
+Production **no borra datos al arrancar**. `Program.cs` solo aplica el esquema y
+aprovisiona el administrador definido en `BootstrapAdmin__*` si no existe. No se
+ejecuta ningún limpiador de tablas, colecciones o caché.
 
-```csharp
-public class Categoria {
-    public string Id { get; set; } = string.Empty;
-    public bool IsDeleted { get; set; } = false;
-    public DateTime? UpdatedAt { get; set; }
-}
+Si necesitas vaciar datos para una demostración, hazlo de forma explícita y
+consciente, por ejemplo recreando el volumen de PostgreSQL (`down -v`) o
+ejecutando SQL a mano sobre una copia. Nunca lo dejes como efecto colateral del
+arranque.
 
-public class Funko {
-    public int Id { get; set; }
-    public string CategoriaId { get; set; } = string.Empty;
-    public bool IsDeleted { get; set; } = false;
-}
-```
-
----
-
-## 3. Filtro Global en DbContext
-
-```csharp
-modelBuilder.Entity<Categoria>().HasQueryFilter(c => !c.IsDeleted);
-modelBuilder.Entity<Funko>().HasQueryFilter(f => !f.IsDeleted);
-```
-
-Esto excluye automáticamente los borrados de todas las consultas LINQ.
-
----
-
-## 4. Flujo de Eliminación de Categoría
-
-```
-1. Recibir DELETE /api/categorias/{id}
-2. Consultar si hay funkos con CategoriaId = id
-3. Si Total > 0 → devolver 409 Conflict
-   - Mensaje: "No se puede borrar la categoría si hay un funko asociado"
-4. Si Total == 0 → marcar IsDeleted = true en la categoría
-   - devolver 204 No Content
-```
-
----
-
-## 5. Código del Service
-
-```csharp
-public async Task<Result<bool, DomainError>> Delete(string id)
-{
-    // Verificar funkos asociados
-    var paged = await funkoRepo.GetPagedAsync(new FunkoFilterRequest {
-        CategoriaId = id,
-        Page = 0,
-        Size = 1
-    });
-    if (paged.Total > 0)
-        return Result.Failure<bool, DomainError>(
-            new Conflict("No se puede borrar la categoría si hay un funko asociado"));
-
-    return await repo.DeleteAsync(id);
-}
-```
-
----
-
-## 6. Flujo de Eliminación de Funko
-
-```
-1. Recibir DELETE /api/funkos/{id}
-2. Buscar funko por id
-3. Si no existe → 404 NotFound
-4. Marcar IsDeleted = true, UpdatedAt = ahora
-5. Guardar cambios → 204 No Content
-```
-
----
-
-## 7. Consultar borrados
-
-Para ver entidades borradas (administración):
-
-```csharp
-// Ignorar el filtro global
-var borrados = await context.Funkos
-    .IgnoreQueryFilters()
-    .Where(f => f.IsDeleted)
-    .ToListAsync();
-```
-
-O usar filtro `IncludeDeleted = true` en el repository.
+Los volúmenes Docker `funkoapiv2_*` son persistentes. `.\Start.ps1 -Production
+-Down` para los contenedores sin borrar los datos. Consulta
+[Docker](19-docker.md) antes de desplegar.

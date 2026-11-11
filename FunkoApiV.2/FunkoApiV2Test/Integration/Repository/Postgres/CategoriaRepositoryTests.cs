@@ -54,7 +54,7 @@ public class CategoriaRepositoryTests : PostgresBaseTest {
 
     [Test]
     public async Task UpdateAsync_guarda_los_cambios() {
-        var resultado = await _repository.UpdateAsync("Anime000001", new Categoria {
+        var resultado = await _repository.UpdateAsync("VQGCKyvzIM4", new Categoria {
             Nombre = "Anime y Manga",
             Descripcion = "Series japonesas"
         });
@@ -66,11 +66,11 @@ public class CategoriaRepositoryTests : PostgresBaseTest {
 
     [Test]
     public async Task DeleteAsync_la_oculta_del_listado() {
-        var borrada = await _repository.DeleteAsync("Anime000001");
+        var borrada = await _repository.DeleteAsync("VQGCKyvzIM4");
 
         borrada.IsSuccess.Should().BeTrue();
         var (items, total) = await _repository.GetPagedAsync(new CategoriaFilterRequest());
         total.Should().Be(2);
-        items.Should().NotContain(c => c.Id == "Anime000001");
+        items.Should().NotContain(c => c.Id == "VQGCKyvzIM4");
     }
 }

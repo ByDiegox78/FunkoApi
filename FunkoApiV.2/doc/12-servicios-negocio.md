@@ -1,78 +1,39 @@
-# 📄 doc/12 — Servicios de Dominio
+# 12 — Servicios de negocio
 
----
+## Responsabilidades
 
-## 1. Estructura del service
+Los servicios coordinan validación, reglas de negocio, repositorios, mapeo,
+caché y notificaciones. Sus interfaces e implementaciones están bajo
+`FunkoApiV.2/Service/`. Los controladores no deben consultar directamente los
+repositorios.
 
-```csharp
-public class FunkoService(
-    IFunkoRepository repo,
-    IProveedorRepository repoProveedor,
-    ICategoriaRepository repoCategoria,
-    ILogger<FunkoService> log,
-    IValidator<FunkoCreateRequest> createValidation,
-    IValidator<FunkoUpdateRequest> updateValidation,
-    IStorageService storage
-) : IFunkoService
-{
-    public async Task<Result<FunkoResponseDto, DomainError>> Add(FunkoCreateRequest request)
-    {
-        log.LogInformation("Creando funko: {@Funko}", request);
+Ejemplos de reglas gestionadas por servicios:
 
-        // 1. Validar existencia de relaciones (categoría y proveedor)
-        var categoria = await repoCategoria.GetById(request.CategoriaId);
-        if (categoria.IsFailure)
-            return Result.Failure<FunkoResponseDto, DomainError>(
-                new Conflict("La categoría especificada no existe"));
+- Verificar que la categoría y el proveedor existen antes de asociarlos a un
+  Funko.
+- No borrar una categoría que todavía tenga Funkos asociados (409).
+- Validar solicitudes mediante FluentValidation.
+- Guardar imágenes y publicar notificaciones relacionadas con cambios.
+- Devolver errores tipados, que el controlador traduce a HTTP.
 
-        var proveedor = await repoProveedor.GetById(request.ProveedorId);
-        if (proveedor.IsFailure)
-            return Result.Failure<FunkoResponseDto, DomainError>(
-                new Conflict("El proveedor especificado no existe"));
+## Decoradores
 
-        // 2. Validar DTO con FluentValidation
-        var validation = await createValidation.ValidateAsync(request);
-        if (!validation.IsValid)
-            return Result.Failure<FunkoResponseDto, DomainError>(
-                new ValidationError(validation.Errors[0].ErrorMessage));
+`DependencerProvider.AddDependencies` decora los servicios de Funkos,
+categorías y proveedores con implementaciones cacheadas. Al añadir una regla
+que cambia datos, revisa qué claves de caché y eventos SignalR/GraphQL deben
+actualizarse. No añadas efectos secundarios silenciosos ante fallos.
 
-        // 3. Persistir
-        return (await repo.CreateAsync(request.ToModel())).Map(f => f.ToDto());
-    }
-}
-```
+## Cómo cambiar un servicio
 
----
+1. Revisa la interfaz y la implementación actuales.
+2. Identifica los repositorios y validadores existentes que ya cubren la regla.
+3. Devuelve un error de dominio para fallos esperados; reserva excepciones para
+   fallos inesperados.
+4. Añade tests unitarios del servicio y, si toca persistencia, tests de
+   integración.
 
-## 2. Reglas de los services
-
-| Regla | Detalle |
-|-------|---------|
-| Dueño de la regla de negocio | Nunca en el controller |
-| Devuelve `Result<T, DomainError>` | Nunca excepciones de negocio |
-| Loguea | `LogInformation` al entrar, `LogWarning` en no fatales |
-| Mapea entidad → DTO | El repository devuelve entidades, el service DTOs |
-| No conoce `HttpContext` | Solo lógica pura de negocio |
-| Efectos secundarios en `Tap` | Email, websocket, señalR, caché |
-
----
-
-## 3. Servicio con caché (decorador)
-
-```csharp
-public class CachedFunkoService(IFunkoService inner, ICacheService cache) : IFunkoService
-{
-    // Delegar al inner y gestionar caché
-}
-```
-
----
-
-## 4. Reglas de negocio específicas
-
-| Regla | Implementación |
-|-------|---------------|
-| No borrar categoría con funkos | Consultar `funkoRepo.GetPagedAsync` por `CategoriaId`, si `Total > 0` → `Conflict` |
-| Imagen relativa | Validar que la ruta empiece con `/uploads/` y no sea URL absoluta |
-| ID categoría YouTube | 11 caracteres, generado automáticamente en `CreateAsync` |
-| ID proveedor ObjectId | 24 chars hex, validado por regex |
+`Service/Email/EmailService.cs` envía un correo de bienvenida al registrarse un
+usuario. En Development se conecta a Mailpit (`localhost:1025`); abre
+<http://localhost:8025> para consultar los mensajes capturados. Los ajustes
+SMTP se enlazan desde la sección `Smtp`; producción debe proporcionar sus
+propias variables de entorno y no reutilizar credenciales de desarrollo.

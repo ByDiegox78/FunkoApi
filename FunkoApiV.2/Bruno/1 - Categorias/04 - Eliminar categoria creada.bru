@@ -1,13 +1,22 @@
 meta {
   name: Eliminar categoria creada
   type: http
-  seq: 4
+  seq: 5
 }
 
 delete {
   url: {{baseUrl}}/api/categorias/{{categoriaIdCreada}}
   body: none
-  auth: none
+}
+
+auth:bearer {
+  token: {{adminToken}}
+}
+
+script:pre-request {
+  const token = bru.getEnvVar("adminToken");
+  if (!token) throw new Error("Inicia sesión como ADMIN antes de eliminar categorías.");
+  req.setHeader("Authorization", `Bearer ${token}`);
 }
 
 tests {

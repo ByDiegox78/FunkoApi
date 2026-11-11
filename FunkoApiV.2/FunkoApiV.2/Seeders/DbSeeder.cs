@@ -28,9 +28,9 @@ public static class DbSeeder {
         if (!await db.Categorias.AnyAsync()) {
             var seedDate = DateTime.UtcNow;
             db.Categorias.AddRange(
-                new Categoria { Id = "Anime000001", Nombre = "Anime", Descripcion = "Personajes de series de anime y manga", CreatedAt = seedDate, IsDeleted = false },
-                new Categoria { Id = "Videojuego1", Nombre = "Videojuegos", Descripcion = "Personajes de consolas y PC", CreatedAt = seedDate, IsDeleted = false },
-                new Categoria { Id = "Peliculas01", Nombre = "Películas", Descripcion = "Cine y series de televisión", CreatedAt = seedDate, IsDeleted = false }
+                new Categoria { Id = "VQGCKyvzIM4", Nombre = "Anime", Descripcion = "Personajes de series de anime y manga", CreatedAt = seedDate, IsDeleted = false },
+                new Categoria { Id = "zw47_q9wbBE", Nombre = "Videojuegos", Descripcion = "Personajes de consolas y PC", CreatedAt = seedDate, IsDeleted = false },
+                new Categoria { Id = "TcMBFSGVi1c", Nombre = "Películas", Descripcion = "Cine y series de televisión", CreatedAt = seedDate, IsDeleted = false }
             );
             await db.SaveChangesAsync();
             logger.LogInformation("Seed de categorías aplicado");
@@ -65,7 +65,7 @@ public static class DbSeeder {
                     Precio = 15.99m,
                     Stock = 10,
                     Imagen = "/uploads/funkos/placeholder.png",
-                    CategoriaId = "Anime000001",
+                    CategoriaId = "VQGCKyvzIM4",
                     ProveedorId = ProveedorSeedId,
                     CreatedAt = seedDate,
                     IsDeleted = false
@@ -75,7 +75,7 @@ public static class DbSeeder {
                     Precio = 14.50m,
                     Stock = 8,
                     Imagen = "/uploads/funkos/placeholder.png",
-                    CategoriaId = "Anime000001",
+                    CategoriaId = "VQGCKyvzIM4",
                     ProveedorId = ProveedorSeedId,
                     CreatedAt = seedDate,
                     IsDeleted = false
@@ -85,7 +85,7 @@ public static class DbSeeder {
                     Precio = 19.99m,
                     Stock = 5,
                     Imagen = "/uploads/funkos/placeholder.png",
-                    CategoriaId = "Videojuego1",
+                    CategoriaId = "zw47_q9wbBE",
                     ProveedorId = ProveedorSeedId,
                     CreatedAt = seedDate,
                     IsDeleted = false
@@ -95,7 +95,7 @@ public static class DbSeeder {
                     Precio = 17.50m,
                     Stock = 12,
                     Imagen = "/uploads/funkos/placeholder.png",
-                    CategoriaId = "Videojuego1",
+                    CategoriaId = "zw47_q9wbBE",
                     ProveedorId = ProveedorSeedId,
                     CreatedAt = seedDate,
                     IsDeleted = false
@@ -105,7 +105,7 @@ public static class DbSeeder {
                     Precio = 21.00m,
                     Stock = 3,
                     Imagen = "/uploads/funkos/placeholder.png",
-                    CategoriaId = "Peliculas01",
+                    CategoriaId = "TcMBFSGVi1c",
                     ProveedorId = ProveedorSeedId,
                     CreatedAt = seedDate,
                     IsDeleted = false

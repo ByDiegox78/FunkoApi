@@ -1,148 +1,175 @@
 #!/usr/bin/env pwsh
 #===============================================================================
 # Run-Bruno.ps1
-# Ejecuta la colección Bruno de FunkoApi con tests automatizados.
-# Si Bruno CLI no está instalado, intenta instalarlo o da instrucciones.
+# Arranca las bases con Docker, levanta la API en Development (5798) y ejecuta
+# la colección Bruno. Se puede lanzar desde FunkoApiV.2 o desde la raíz.
+# Uso: .\Run-Bruno.ps1 [-Environment Local] [-ResetData]
 #===============================================================================
 
 [CmdletBinding()]
 param(
     [string]$Environment = "Local",
-    [string]$CollectionPath = (Join-Path $PSScriptRoot "Bruno"),
-    [string]$BrunoCli = "bru"
+    [switch]$ResetData
 )
 
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$ErrorActionPreference = "Stop"
 
-if (-not [System.IO.Path]::IsPathRooted($CollectionPath)) {
-    $CollectionPath = Join-Path $PSScriptRoot $CollectionPath
-}
-$CollectionPath = (Resolve-Path -LiteralPath $CollectionPath -ErrorAction Stop).Path
+$apiRoot = $PSScriptRoot
+$projectDir = Join-Path $apiRoot "FunkoApiV.2"
+$brunoDir = Join-Path $apiRoot "Bruno"
+$envFile = Join-Path $projectDir ".env"
+$exampleEnvFile = Join-Path $apiRoot ".env.example"
+$brunoEnvFile = Join-Path $brunoDir "environments\$Environment.bru"
+$baseUrl = "http://localhost:5798"
+$healthUrl = "$baseUrl/api/funkos?page=0&size=1"
+$apiOutLog = Join-Path $env:TEMP "funkoapi-run-bruno.log"
+$apiErrLog = Join-Path $env:TEMP "funkoapi-run-bruno.err.log"
+$temporaryEnvFile = Join-Path ([System.IO.Path]::GetTempPath()) "FunkoApi-Bruno-$PID.bru"
 
-Write-Host "==============================================" -ForegroundColor Cyan
-Write-Host "🚀 FunkoApi - Ejecutando colección Bruno" -ForegroundColor Cyan
-Write-Host "==============================================" -ForegroundColor Cyan
-Write-Host ""
+$brunoExit = 1
+$apiProcess = $null
+$startedApi = $false
 
-# ─── 1. Verificar si Bruno CLI está instalado ───
-$brunoCmd = Get-Command $BrunoCli -ErrorAction SilentlyContinue
-
-if (-not $brunoCmd) {
-    Write-Host "⚠️  Bruno CLI no está instalado en el PATH." -ForegroundColor Yellow
-    Write-Host ""
-
-    # Intentar instalar con winget (Windows 10/11 moderno)
-    $winget = Get-Command winget -ErrorAction SilentlyContinue
-    if ($winget) {
-        Write-Host "📦 Intentando instalar Bruno CLI con winget..." -ForegroundColor Cyan
-        try {
-            & winget install --id Usabruno.bruno --accept-package-agreements --accept-source-agreements
-            $installExit = $LASTEXITCODE
-            if ($installExit -eq 0) {
-                Write-Host "✅ Bruno CLI instalado correctamente con winget." -ForegroundColor Green
-                $brunoCmd = Get-Command $BrunoCli -ErrorAction SilentlyContinue
-            } else {
-                Write-Host "⚠️  winget no pudo instalar Bruno (código: $installExit)" -ForegroundColor Yellow
-            }
-        } catch {
-            Write-Host "⚠️  Error al intentar instalar con winget: $_" -ForegroundColor Yellow
-        }
+# ─── 1. Crear .env desde la plantilla si no existe ───
+if (!(Test-Path -LiteralPath $envFile)) {
+    if (!(Test-Path -LiteralPath $exampleEnvFile)) {
+        throw "No se encontró $envFile ni la plantilla $exampleEnvFile."
     }
+    Copy-Item -LiteralPath $exampleEnvFile -Destination $envFile
+    Write-Host "Se creó .env desde .env.example." -ForegroundColor Yellow
+}
 
-    # Si sigue sin estar, intentar con chocolatey
-    if (-not $brunoCmd) {
-        $choco = Get-Command choco -ErrorAction SilentlyContinue
-        if ($choco) {
-            Write-Host "📦 Intentando instalar Bruno CLI con chocolatey..." -ForegroundColor Cyan
-            try {
-                & choco install bruno -y
-                $installExit = $LASTEXITCODE
-                if ($installExit -eq 0) {
-                    Write-Host "✅ Bruno CLI instalado correctamente con chocolatey." -ForegroundColor Green
-                    $brunoCmd = Get-Command $BrunoCli -ErrorAction SilentlyContinue
-                } else {
-                    Write-Host "⚠️  chocolatey no pudo instalar Bruno (código: $installExit)" -ForegroundColor Yellow
-                }
-            } catch {
-                Write-Host "⚠️  Error al intentar instalar con chocolatey: $_" -ForegroundColor Yellow
-            }
+# ─── 2. Borrar volúmenes de desarrollo si se pide ───
+if ($ResetData) {
+    $confirm = Read-Host "Esto borrará los volúmenes de desarrollo (Postgres, Mongo, Cassandra y Redis). Escribe SI para continuar"
+    if ($confirm -ne "SI") {
+        throw "Cancelado por el usuario."
+    }
+    Write-Host "==> Borrando volúmenes de desarrollo..." -ForegroundColor Yellow
+    Push-Location $projectDir
+    try {
+        docker compose --env-file $envFile down -v
+        if ($LASTEXITCODE -ne 0) {
+            throw "docker compose down -v falló (código $LASTEXITCODE)."
         }
+    } finally {
+        Pop-Location
     }
 }
 
-# ─── 2. Si sigue sin Bruno, dar instrucciones y salir ───
-if (-not $brunoCmd) {
-    Write-Host ""
-    Write-Host "==============================================" -ForegroundColor Red
-    Write-Host "❌ Bruno CLI no está disponible." -ForegroundColor Red
-    Write-Host "==============================================" -ForegroundColor Red
-    Write-Host ""
-    Write-Host "Opciones para instalar Bruno CLI:" -ForegroundColor Yellow
-    Write-Host "  1. winget:    winget install --id Usabruno.bruno" -ForegroundColor White
-    Write-Host "  2. chocolatey: choco install bruno -y" -ForegroundColor White
-    Write-Host "  3. Manual:    https://www.usebruno.com/cli" -ForegroundColor White
-    Write-Host ""
-    Write-Host "Después de instalar, reinicia PowerShell y vuelve a ejecutar este script." -ForegroundColor Yellow
-    Write-Host ""
-    Write-Host "Mientras tanto, puedes usar el script alternativo:" -ForegroundColor Cyan
-    Write-Host "  .\Test-Api.ps1" -ForegroundColor White
-    Write-Host ""
-    exit 1
-}
-
-Write-Host "✅ Bruno CLI encontrado: $($brunoCmd.Source)" -ForegroundColor Green
-
-# ─── 3. Verificar colección y entorno ───
-if (!(Test-Path $CollectionPath)) {
-    Write-Error "❌ No se encontró la carpeta de la colección: $CollectionPath"
-    exit 1
-}
-
-$envFile = Join-Path $CollectionPath "environments\$Environment.bru"
-if (!(Test-Path $envFile)) {
-    Write-Error "❌ No se encontró el archivo de entorno: $envFile"
-    Write-Host ""
-    Write-Host "Entornos disponibles:" -ForegroundColor Yellow
-    $envDir = Join-Path $CollectionPath "environments"
-    if (Test-Path $envDir) {
-        Get-ChildItem -Path $envDir -Filter "*.bru" | ForEach-Object {
-            Write-Host "   - $($_.Name)" -ForegroundColor Yellow
-        }
-    }
-    exit 1
-}
-
-Write-Host ""
-Write-Host "📁 Colección: $CollectionPath" -ForegroundColor Yellow
-Write-Host "🌍 Entorno:   $Environment ($envFile)" -ForegroundColor Yellow
-Write-Host ""
-
-if ([string]::IsNullOrWhiteSpace($env:FUNKO_ADMIN_EMAIL) -or
-    [string]::IsNullOrWhiteSpace($env:FUNKO_ADMIN_PASSWORD)) {
-    Write-Error "Define FUNKO_ADMIN_EMAIL y FUNKO_ADMIN_PASSWORD para iniciar sesión como ADMIN."
-    exit 1
-}
-
-# ─── 4. Ejecutar Bruno ───
-Write-Host "▶️  Ejecutando tests de Bruno...`n" -ForegroundColor Cyan
-
-Push-Location $CollectionPath
+# ─── 3. Levantar las bases de datos ───
+Write-Host "==> Levantando PostgreSQL, MongoDB, Cassandra, Redis y Mailpit..." -ForegroundColor Cyan
+Push-Location $projectDir
 try {
-    & $BrunoCli run -r --env-file $envFile
-    $exitCode = $LASTEXITCODE
+    docker compose --profile development --env-file $envFile up -d --wait db mongo_db cassandra redis mailpit
+    if ($LASTEXITCODE -ne 0) {
+        throw "docker compose up falló (código $LASTEXITCODE)."
+    }
 } finally {
     Pop-Location
 }
 
-Write-Host ""
-if ($exitCode -eq 0) {
-    Write-Host "==============================================" -ForegroundColor Green
-    Write-Host "✅ Todos los tests de Bruno pasaron correctamente" -ForegroundColor Green
-    Write-Host "==============================================" -ForegroundColor Green
+# ─── 4. Reutilizar la API si ya está levantada; si no, arrancarla en el host ───
+$alreadyRunning = $false
+try {
+    $response = Invoke-WebRequest -Uri $healthUrl -UseBasicParsing -TimeoutSec 3
+    if ($response.StatusCode -eq 200) {
+        $alreadyRunning = $true
+    }
+} catch { }
+
+if (-not $alreadyRunning) {
+    $portInUse = Get-NetTCPConnection -LocalPort 5798 -State Listen -ErrorAction SilentlyContinue
+    if ($portInUse) {
+        throw "El puerto 5798 está ocupado por otro proceso. Deténlo antes de ejecutar este script."
+    }
+
+    Write-Host "==> Iniciando la API en Development ($baseUrl)..." -ForegroundColor Cyan
+    $previousEnvironment = $env:ASPNETCORE_ENVIRONMENT
+    try {
+        $env:ASPNETCORE_ENVIRONMENT = "Development"
+        $apiProcess = Start-Process -FilePath "dotnet" `
+            -ArgumentList @("run", "--project", ".\FunkoApiV.2.csproj", "--no-launch-profile", "--urls", $baseUrl) `
+            -WorkingDirectory $projectDir `
+            -RedirectStandardOutput $apiOutLog `
+            -RedirectStandardError $apiErrLog `
+            -PassThru -WindowStyle Hidden
+        $startedApi = $true
+    } finally {
+        if ($null -eq $previousEnvironment) {
+            Remove-Item Env:ASPNETCORE_ENVIRONMENT -ErrorAction SilentlyContinue
+        } else {
+            $env:ASPNETCORE_ENVIRONMENT = $previousEnvironment
+        }
+    }
 } else {
-    Write-Host "==============================================" -ForegroundColor Red
-    Write-Host "❌ Algunos tests de Bruno fallaron (código: $exitCode)" -ForegroundColor Red
-    Write-Host "==============================================" -ForegroundColor Red
+    Write-Host "==> La API ya responde en $baseUrl; se reutiliza." -ForegroundColor Yellow
 }
 
-exit $exitCode
+try {
+    if ($startedApi) {
+        Write-Host "==> Esperando a que la API responda..." -ForegroundColor Cyan
+        $ready = $false
+        for ($i = 0; $i -lt 60; $i++) {
+            if ($apiProcess.HasExited) {
+                throw "La API terminó antes de arrancar. Revisa $apiOutLog y $apiErrLog."
+            }
+            try {
+                $response = Invoke-WebRequest -Uri $healthUrl -UseBasicParsing -TimeoutSec 2
+                if ($response.StatusCode -eq 200) {
+                    $ready = $true
+                    break
+                }
+            } catch { }
+            Start-Sleep -Seconds 2
+        }
+        if (-not $ready) {
+            throw "La API no respondió a tiempo. Revisa $apiOutLog."
+        }
+        Write-Host "API lista." -ForegroundColor Green
+    }
+
+    # ─── 5. Credenciales de Bruno (por defecto, las del seeder de Development) ───
+    if ([string]::IsNullOrWhiteSpace($env:FUNKO_ADMIN_EMAIL)) {
+        $env:FUNKO_ADMIN_EMAIL = "admin@admin.com"
+    }
+    if ([string]::IsNullOrWhiteSpace($env:FUNKO_ADMIN_PASSWORD)) {
+        $env:FUNKO_ADMIN_PASSWORD = "Admin123!"
+    }
+
+    # ─── 6. Ejecutar Bruno con una copia temporal del entorno ───
+    if (!(Test-Path -LiteralPath $brunoEnvFile)) {
+        throw "No se encontró el entorno de Bruno: $brunoEnvFile"
+    }
+    $brunoEnvironment = [System.IO.File]::ReadAllText($brunoEnvFile)
+    $updatedEnvironment = [System.Text.RegularExpressions.Regex]::Replace(
+        $brunoEnvironment,
+        "(?m)^\s*baseUrl:\s*\S+",
+        "  baseUrl: $baseUrl")
+    [System.IO.File]::WriteAllText(
+        $temporaryEnvFile,
+        $updatedEnvironment,
+        [System.Text.UTF8Encoding]::new($false))
+
+    Write-Host "==> Ejecutando la colección Bruno..." -ForegroundColor Cyan
+    Push-Location $brunoDir
+    try {
+        npx --yes @usebruno/cli run -r --env-file $temporaryEnvFile
+        $brunoExit = $LASTEXITCODE
+    } finally {
+        Pop-Location
+    }
+} finally {
+    Remove-Item -LiteralPath $temporaryEnvFile -ErrorAction SilentlyContinue
+    if ($startedApi -and $apiProcess -and -not $apiProcess.HasExited) {
+        & taskkill /PID $apiProcess.Id /T /F | Out-Null
+        Write-Host "API detenida. Los contenedores siguen en marcha." -ForegroundColor Yellow
+    }
+}
+
+if ($brunoExit -ne 0) {
+    Write-Host "Bruno reportó fallos (código $brunoExit)." -ForegroundColor Red
+    exit $brunoExit
+}
+
+Write-Host "Todo OK." -ForegroundColor Green

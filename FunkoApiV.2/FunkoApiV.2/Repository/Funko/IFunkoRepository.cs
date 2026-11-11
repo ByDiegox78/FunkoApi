@@ -6,8 +6,6 @@ using FunkoApiV._2.Models;
 namespace FunkoApiV._2.Repository;
 
 public interface IFunkoRepository {
-    Task<IEnumerable<Funko>> GetAllAsync();
-    
     Task<(IReadOnlyList<Funko> Items, int Total)> GetPagedAsync(FunkoFilterRequest filter);
 
     Task<Result<Funko, DomainError>> GetByIdAsync(long id);

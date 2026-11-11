@@ -1,105 +1,46 @@
-# 📄 doc/02 — Arquitectura y Pipeline HTTP
+# 02 — Arquitectura y pipeline HTTP
 
----
+## Arquitectura actual
 
-## 1. Arquitectura por capas (Onion-like híbrida)
+La API separa controladores, servicios, repositorios e infraestructura. Los
+controladores traducen HTTP; los servicios aplican validaciones y reglas de
+negocio; los repositorios trabajan con PostgreSQL, MongoDB o Cassandra. Redis
+se integra mediante servicios decoradores de caché.
 
-```
-HTTP Request
-   ↓
-Middleware (GlobalExceptionHandler, SecurityHeaders)
-   ↓
-Controller  ──→  DTO de entrada + Validator
-   ↓
-Service     ──→  Result<T, DomainError>  ← reglas de negocio, caché
-   ↓
-Repository  ──→  EF Core / MongoDB / Redis
-   ↓
-DbContext
-```
+Código principal:
 
-### Reglas de dependencia
+- `Controller/`: endpoints REST.
+- `Service/`: reglas de negocio y decoradores.
+- `Repository/`: acceso a datos.
+- `Infrastructure/`: composición de servicios, seguridad, esquemas e
+  inicialización.
+- `Program.cs`: registro de dependencias, inicialización de datos y pipeline.
 
-| Capa | Puede depender de | NO puede depender de |
-|------|-------------------|----------------------|
-| Controller | Service, DTO | Repository, DbContext |
-| Service | Repository, DomainError, DTO, Cache | Controller, HttpContext |
-| Repository | DbContext, DomainError | Service, Controller |
-| Models (entidades) | Nada | Todo el resto |
+## Inicio de la aplicación
 
-> 📌 El controller **nunca** habla con el repositorio. El service **nunca** devuelve entidad EF al controller: siempre DTO.
+`Program.Main` configura controladores y errores de modelo, Identity/JWT,
+validadores, GraphQL, SignalR, CORS, Swagger, rate limiting, contextos de datos,
+Cassandra, Redis y dependencias Scrutor. Al construir la aplicación:
 
----
+1. Swagger UI se activa solo en Development.
+2. Inicializa el esquema PostgreSQL/Cassandra.
+3. En Development ejecuta los seeders; en Production solo garantiza los roles y
+   aprovisiona el admin configurado si no existe. No borra datos.
+4. Configura cabeceras de seguridad fuera de Development.
+5. Habilita redirección HTTPS, archivos estáticos, CORS, rate limiting,
+   autenticación, autorización, WebSockets, controladores, SignalR y GraphQL.
 
-## 2. Pipeline HTTP (`Program.cs`)
+El orden y las condiciones exactas viven en `FunkoApiV.2/Program.cs`; este
+documento no debe usarse como sustituto del código.
 
-El orden del middleware es crítico:
+## Errores HTTP
 
-```csharp
-// 1. Servicios (vía extension methods en Infrastructures/)
-builder.Services.AddSerilogConfiguration();
-builder.Services.AddDatabaseConfiguration(builder.Configuration);
-builder.Services.AddRepositoriesConfiguration();
-builder.Services.AddServicesConfiguration();
-builder.Services.AddSwaggerConfiguration();
-builder.Services.AddCorsPolicy(builder.Configuration);
-builder.Services.AddAuthenticationConfiguration(builder.Configuration);
+Los errores de negocio usan `DomainError` y `DomainErrorExtensions`. Los errores
+de validación automática de `[ApiController]` se transforman en `ApiErrorResponse`
+con mensaje y errores por campo. Una excepción no controlada se procesa por el
+middleware global registrado en `Program.cs`.
 
-// 2. Pipeline de middleware (orden = prioridad)
-app.UseGlobalExceptionHandler();      // Captura excepciones no controladas
-app.UseSecurityHeaders();             // Headers de seguridad HTTP
-app.UseRateLimiting();                // Límite por IP/endpoint
-app.UseHsts();                        // Solo producción
-app.UseHttpsRedirection();            // Solo producción
-app.UseCorsPolicy();
-app.UseAuthentication();
-app.UseAuthorization();
-app.MapControllers();
+## Entorno de trabajo
 
-// 3. Migraciones y seed
-await app.ApplyDatabaseMigrationsAsync();
-await app.SeedDatabaseAsync();
-```
-
----
-
-## 3. Registro de DI — Extension methods
-
-Cada fichero `Infrastructures/*Config.cs` tiene una responsabilidad:
-
-```csharp
-// Infrastructures/ServicesConfig.cs
-public static class ServicesConfig
-{
-    public static IServiceCollection AddServicesConfiguration(
-        this IServiceCollection services)
-    {
-        services.AddScoped<IFunkoService, FunkoService>();
-        services.AddScoped<ICategoriaService, CategoriaService>();
-        return services;
-    }
-}
-```
-
-> ❌ No se usa el patrón `IScopedService`/`ISingletonService` con escaneo por reflexión. Se usan extension methods explícitos.
-
----
-
-## 4. `public partial class Program`
-
-Obligatorio para tests de integración con `WebApplicationFactory<Program>`:
-
-```csharp
-public partial class Program;
-```
-
----
-
-## 5. Estilo de código
-
-- **Namespace file-scoped**: `namespace FunkoApiV._2.Service;`
-- **Constructor primario**: `public class FunkoService(IFunkoRepository repo, ...) : IFunkoService`
-- **Llave de apertura**: siempre en línea nueva
-- **`var`**: solo cuando el tipo es evidente
-- **Métodos async**: sufijo `Async` (`FindByIdAsync`, `GetAllAsync`)
-- **XML docs**: obligatorio en todo miembro público (`///`)
+Arranca dependencias y API con `.\Start.ps1` desde la raíz. Para pasos y
+direcciones, consulta [la guía práctica](00-guia-practica.md).

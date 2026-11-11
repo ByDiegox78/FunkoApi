@@ -7,5 +7,5 @@ public class SmtpSettings {
     public string? Password { get; set; }
     public string From { get; set; } = "noreply@funkos.com";
     public string DisplayName { get; set; } = "Funkos";
-    public string Security { get; set; } = "Auto";
+    public string Security { get; set; } = "StartTls";
 }
